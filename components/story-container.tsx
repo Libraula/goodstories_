@@ -34,7 +34,7 @@ export default function StoryContainer({
   const { readingMode } = useReadingSettings()
   const contentRef = useRef<HTMLDivElement>(null)
 
-  const TRANSITION_DURATION = 400
+  const TRANSITION_DURATION = 400 // Kept for consistency, but not used for scrolling
 
   if (!story) {
     return <div>Loading story...</div>
@@ -85,10 +85,10 @@ export default function StoryContainer({
 
     container.scrollTo({
       [readingMode === "page" ? "left" : "top"]: position,
-      behavior: "smooth",
+      behavior: "auto", // Changed from "smooth" to "auto" for instant scrolling
     })
 
-    setTimeout(() => setIsTransitioning(false), TRANSITION_DURATION)
+    setTimeout(() => setIsTransitioning(false), 0) // No delay needed since there's no animation
   }
 
   useEffect(() => {
@@ -223,7 +223,7 @@ export default function StoryContainer({
             scrollbarWidth: "none",
             WebkitOverflowScrolling: "touch",
             scrollSnapType: readingMode === "page" ? "x mandatory" : "y mandatory",
-            transition: `all ${TRANSITION_DURATION}ms ease-in-out`,
+            // Removed transition property
           }}
         >
           {story.pages.map((page, index) => (
@@ -234,7 +234,7 @@ export default function StoryContainer({
               } p-4 flex flex-col overflow-hidden`}
               style={{ 
                 height: readingMode === "page" ? `${containerHeight}px` : "auto",
-                transition: `all ${TRANSITION_DURATION}ms ease-in-out`,
+                // Removed transition property
               }}
             >
               <div className="story-page-content h-full flex flex-col justify-between">
