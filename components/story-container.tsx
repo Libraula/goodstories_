@@ -34,7 +34,7 @@ export default function StoryContainer({
   const { readingMode } = useReadingSettings()
   const contentRef = useRef<HTMLDivElement>(null)
 
-  const TRANSITION_DURATION = 400 // Kept for consistency, but not used for scrolling
+  const TRANSITION_DURATION = 400
 
   if (!story) {
     return <div>Loading story...</div>
@@ -85,10 +85,10 @@ export default function StoryContainer({
 
     container.scrollTo({
       [readingMode === "page" ? "left" : "top"]: position,
-      behavior: "auto", // Changed from "smooth" to "auto" for instant scrolling
+      behavior: "auto",
     })
 
-    setTimeout(() => setIsTransitioning(false), 0) // No delay needed since there's no animation
+    setTimeout(() => setIsTransitioning(false), 0)
   }
 
   useEffect(() => {
@@ -223,7 +223,6 @@ export default function StoryContainer({
             scrollbarWidth: "none",
             WebkitOverflowScrolling: "touch",
             scrollSnapType: readingMode === "page" ? "x mandatory" : "y mandatory",
-            // Removed transition property
           }}
         >
           {story.pages.map((page, index) => (
@@ -234,7 +233,6 @@ export default function StoryContainer({
               } p-4 flex flex-col overflow-hidden`}
               style={{ 
                 height: readingMode === "page" ? `${containerHeight}px` : "auto",
-                // Removed transition property
               }}
             >
               <div className="story-page-content h-full flex flex-col justify-between">
@@ -406,9 +404,9 @@ export default function StoryContainer({
           {!showSidebar && (
             <button
               onClick={toggleSidebar}
-              className="absolute right-4 bottom-[20px] p-3 bg-highlight/80 dark:bg-highlight/80 rounded-full shadow-md text-white dark:text-white hover:bg-highlight transition-colors duration-200 z-30"
+              className="absolute right-4 bottom-[20px] p-3 bg-highlight/80 dark:bg-highlight/80 rounded-full shadow-md text-white dark:text-white hover:bg-highlight transition-colors duration-200 z-50" // Increased z-index
             >
-              <Eye className="w-5 h-5 fill-current" />
+              <Eye className="w-5 h-5 text-white" /> {/* Explicitly set color */}
             </button>
           )}
         </>
