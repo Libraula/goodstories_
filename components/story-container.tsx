@@ -13,14 +13,14 @@ export default function StoryContainer({
   showSidebar,
   toggleSidebar,
 }: { 
-  story?: Story; // Make story optional
+  story?: Story; // Story is optional
   showSidebar: boolean; 
   toggleSidebar: () => void 
 }) {
   const [currentPage, setCurrentPage] = useState(0)
   const [isLiked, setIsLiked] = useState(false)
   const [isBookmarked, setIsBookmarked] = useState(false)
-  const [likeCount, setLikeCount] = useState(story?.likeCount ?? 0) // Fallback to 0 if undefined
+  const [likeCount, setLikeCount] = useState(story?.likeCount ?? 0)
   const [showComments, setShowComments] = useState(false)
   const pagesContainerRef = useRef<HTMLDivElement>(null)
   const [lastTapTime, setLastTapTime] = useState(0)
@@ -38,9 +38,9 @@ export default function StoryContainer({
 
   const TRANSITION_DURATION = 400
 
-  // Early return if no story is provided during prerendering
+  // Early return if no story is provided
   if (!story) {
-    return <div>Loading story...</div> // Or any placeholder
+    return <div>Loading story...</div> // Placeholder during prerendering or data fetching
   }
 
   useEffect(() => {
@@ -81,7 +81,7 @@ export default function StoryContainer({
 
   const scrollToPage = (index: number) => {
     if (!pagesContainerRef.current || isTransitioning || 
-        index < 0 || index >= story.pages.length) return;
+        index < 0 || index >= story.pages.length) return
 
     setIsTransitioning(true)
     setCurrentPage(index)
@@ -435,7 +435,11 @@ export default function StoryContainer({
         </>
       )}
 
-      <CommentsSection isOpen={showComments} onClose={() => setShowComments(false)} commentCount={story.commentCount} />
+      <CommentsSection 
+        isOpen={showComments} 
+        onClose={() => setShowComments(false)} 
+        commentCount={story.commentCount} 
+      />
     </div>
   )
 }
