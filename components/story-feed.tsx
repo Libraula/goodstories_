@@ -140,7 +140,6 @@ export default function StoryFeed() {
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (!e.changedTouches || e.changedTouches.length === 0) return
-
     const touchEndX = e.changedTouches[0].clientX
     const touchEndY = e.changedTouches[0].clientY
     const deltaX = touchEndX - touchStartX
@@ -200,8 +199,6 @@ export default function StoryFeed() {
           }`}
           ref={storyFeedRef}
           style={{
-            scrollbarWidth: "none",
-            WebkitOverflowScrolling: "touch",
             scrollSnapType: readingMode === "scroll" ? "x mandatory" : "y mandatory",
             scrollBehavior: "smooth",
           }}
