@@ -13,7 +13,7 @@ export default function StoryContainer({
   showSidebar,
   toggleSidebar,
 }: { 
-  story?: Story; // Story is optional
+  story?: Story;
   showSidebar: boolean; 
   toggleSidebar: () => void 
 }) {
@@ -24,23 +24,20 @@ export default function StoryContainer({
   const [showComments, setShowComments] = useState(false)
   const pagesContainerRef = useRef<HTMLDivElement>(null)
   const [lastTapTime, setLastTapTime] = useState(0)
-  const [touchStartTime, setTouchStartTime] = useState(0)
-  const [initialPinchDistance, setInitialPinchDistance] = useState<number | null>(null)
-  const [containerHeight, setContainerHeight] = useState(0)
   const [touchStartX, setTouchStartX] = useState(0)
   const [touchStartY, setTouchStartY] = useState(0)
+  const [initialPinchDistance, setInitialPinchDistance] = useState<number | null>(null)
+  const [containerHeight, setContainerHeight] = useState(0)
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const { readingMode } = useReadingSettings()
-  const [contentHeight, setContentHeight] = useState(0)
   const contentRef = useRef<HTMLDivElement>(null)
 
   const TRANSITION_DURATION = 400
 
-  // Early return if no story is provided
   if (!story) {
-    return <div>Loading story...</div> // Placeholder during prerendering or data fetching
+    return <div>Loading story...</div>
   }
 
   useEffect(() => {
@@ -50,10 +47,6 @@ export default function StoryContainer({
       const bottomNavHeight = 60
       const availableHeight = viewportHeight - headerHeight - bottomNavHeight - 10
       setContainerHeight(availableHeight)
-
-      if (contentRef.current) {
-        setContentHeight(contentRef.current.clientHeight)
-      }
     }
 
     updateHeight()
@@ -87,13 +80,12 @@ export default function StoryContainer({
     setCurrentPage(index)
 
     const container = pagesContainerRef.current
-    const dimension = readingMode === "page" ? 
-      container.clientWidth : container.clientHeight
+    const dimension = readingMode === "page" ? container.clientWidth : container.clientHeight
     const position = dimension * index
 
     container.scrollTo({
-      [readingMode === "page" ? 'left' : 'top']: position,
-      behavior: 'smooth'
+      [readingMode === "page" ? "left" : "top"]: position,
+      behavior: "smooth",
     })
 
     setTimeout(() => setIsTransitioning(false), TRANSITION_DURATION)
@@ -106,15 +98,11 @@ export default function StoryContainer({
     const handleScroll = () => {
       if (isTransitioning) return
 
-      const dimension = readingMode === "page" ? 
-        container.clientWidth : container.clientHeight
-      const scrollPosition = readingMode === "page" ? 
-        container.scrollLeft : container.scrollTop
-      
+      const dimension = readingMode === "page" ? container.clientWidth : container.clientHeight
+      const scrollPosition = readingMode === "page" ? container.scrollLeft : container.scrollTop
       const newPage = Math.round(scrollPosition / dimension)
-      if (newPage !== currentPage && 
-          newPage >= 0 && 
-          newPage < story.pages.length) {
+
+      if (newPage !== currentPage && newPage >= 0 && newPage < story.pages.length) {
         setCurrentPage(newPage)
       }
     }
@@ -147,7 +135,6 @@ export default function StoryContainer({
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const now = Date.now()
-    setTouchStartTime(now)
     setTouchStartX(e.touches[0].clientX)
     setTouchStartY(e.touches[0].clientY)
 
@@ -166,7 +153,6 @@ export default function StoryContainer({
     if (e.touches.length === 2 && initialPinchDistance !== null) {
       const currentDistance = getPinchDistance(e)
       const pinchChange = currentDistance - initialPinchDistance
-
       if (Math.abs(pinchChange) > 50) {
         toggleSidebar()
         setInitialPinchDistance(null)
@@ -199,10 +185,7 @@ export default function StoryContainer({
   }
 
   const getPinchDistance = (e: React.TouchEvent) => 
-    Math.hypot(
-      e.touches[1].clientX - e.touches[0].clientX,
-      e.touches[1].clientY - e.touches[0].clientY
-    )
+    Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY)
 
   const getPaginationSize = () => {
     const pageCount = story.pages.length
@@ -250,8 +233,8 @@ export default function StoryContainer({
                 readingMode === "page" ? "min-w-full snap-center" : "min-h-full snap-start"
               } p-4 flex flex-col overflow-hidden`}
               style={{ 
-                height: readingMode === "page" ? `${containerHeight}px` : 'auto',
-                transition: `all ${TRANSITION_DURATION}ms ease-in-out`
+                height: readingMode === "page" ? `${containerHeight}px` : "auto",
+                transition: `all ${TRANSITION_DURATION}ms ease-in-out`,
               }}
             >
               <div className="story-page-content h-full flex flex-col justify-between">
@@ -283,9 +266,7 @@ export default function StoryContainer({
                       style={{ fontSize: "var(--story-font-size)" }}
                     >
                       {page.content.map((paragraph, pIndex) => (
-                        <p key={pIndex} className="mb-4">
-                          {paragraph}
-                        </p>
+                        <p key={pIndex} className="mb-4">{paragraph}</p>
                       ))}
                     </div>
                   ) : (
@@ -305,9 +286,7 @@ export default function StoryContainer({
                         style={{ fontSize: "var(--story-font-size)" }}
                       >
                         {page.content.map((paragraph, pIndex) => (
-                          <p key={pIndex} className="mb-4">
-                            {paragraph}
-                          </p>
+                          <p key={pIndex} className="mb-4">{paragraph}</p>
                         ))}
                       </div>
                     </>
