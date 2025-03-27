@@ -34,6 +34,8 @@ export default function StoryContainer({
   const { readingMode } = useReadingSettings()
   const contentRef = useRef<HTMLDivElement>(null)
 
+  const TRANSITION_DURATION = 420 // Increased from 400ms to 420ms (5% slower)
+
   if (!story) {
     return <div>Loading story...</div>
   }
@@ -83,17 +85,12 @@ export default function StoryContainer({
 
     container.scrollTo({
       [readingMode === "page" ? "left" : "top"]: position,
-      behavior: "auto",
+      behavior: "smooth", // Reintroduced smooth scrolling
     })
 
-    // Ensure scroll position is exact to prevent overlap/twitching
     setTimeout(() => {
-      container.scrollTo({
-        [readingMode === "page" ? "left" : "top"]: position,
-        behavior: "auto",
-      })
       setIsTransitioning(false)
-    }, 0)
+    }, TRANSITION_DURATION)
   }
 
   useEffect(() => {
@@ -109,7 +106,7 @@ export default function StoryContainer({
 
       if (newPage !== currentPage && newPage >= 0 && newPage < story.pages.length) {
         setCurrentPage(newPage)
-        scrollToPage(newPage) // Force snap to avoid overlap
+        scrollToPage(newPage)
       }
     }
 
@@ -191,14 +188,6 @@ export default function StoryContainer({
     if (pageCount <= 5) return "w-2.5 h-2.5"
     if (pageCount <= 8) return "w-2 h-2"
     return "w-1.5 h-1.5"
-  }
-
-  function debounce(func: () => void, wait: number) {
-    let timeout: NodeJS.Timeout
-    return () => {
-      clearTimeout(timeout)
-      timeout = setTimeout(func, wait)
-    }
   }
 
   return (
