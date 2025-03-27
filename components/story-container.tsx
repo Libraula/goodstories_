@@ -34,8 +34,6 @@ export default function StoryContainer({
   const { readingMode } = useReadingSettings()
   const contentRef = useRef<HTMLDivElement>(null)
 
-  const TRANSITION_DURATION = 400
-
   if (!story) {
     return <div>Loading story...</div>
   }
@@ -88,7 +86,14 @@ export default function StoryContainer({
       behavior: "auto",
     })
 
-    setTimeout(() => setIsTransitioning(false), 0)
+    // Ensure scroll position is exact to prevent overlap/twitching
+    setTimeout(() => {
+      container.scrollTo({
+        [readingMode === "page" ? "left" : "top"]: position,
+        behavior: "auto",
+      })
+      setIsTransitioning(false)
+    }, 0)
   }
 
   useEffect(() => {
@@ -104,19 +109,12 @@ export default function StoryContainer({
 
       if (newPage !== currentPage && newPage >= 0 && newPage < story.pages.length) {
         setCurrentPage(newPage)
+        scrollToPage(newPage) // Force snap to avoid overlap
       }
     }
 
-    const debouncedSnap = debounce(() => {
-      if (!isTransitioning) scrollToPage(currentPage)
-    }, 100)
-
     container.addEventListener("scroll", handleScroll)
-    container.addEventListener("scroll", debouncedSnap)
-    return () => {
-      container.removeEventListener("scroll", handleScroll)
-      container.removeEventListener("scroll", debouncedSnap)
-    }
+    return () => container.removeEventListener("scroll", handleScroll)
   }, [currentPage, story.pages.length, isTransitioning, readingMode])
 
   useEffect(() => {
@@ -173,13 +171,13 @@ export default function StoryContainer({
 
     if (readingMode === "page") {
       if (Math.abs(deltaX) > swipeThreshold && Math.abs(deltaX) > Math.abs(deltaY)) {
-        if (deltaX > 0) scrollToPage(currentPage - 1)
-        else scrollToPage(currentPage + 1)
+        if (deltaX > 0 && currentPage > 0) scrollToPage(currentPage - 1)
+        else if (deltaX < 0 && currentPage < story.pages.length - 1) scrollToPage(currentPage + 1)
       }
     } else {
       if (Math.abs(deltaY) > swipeThreshold && Math.abs(deltaY) > Math.abs(deltaX)) {
-        if (deltaY > 0) scrollToPage(currentPage - 1)
-        else scrollToPage(currentPage + 1)
+        if (deltaY > 0 && currentPage > 0) scrollToPage(currentPage - 1)
+        else if (deltaY < 0 && currentPage < story.pages.length - 1) scrollToPage(currentPage + 1)
       }
     }
   }
@@ -215,8 +213,8 @@ export default function StoryContainer({
         <div
           className={`story-pages flex-1 ${
             readingMode === "page"
-              ? "flex overflow-x-auto snap-x snap-mandatory"
-              : "overflow-y-auto snap-y snap-mandatory"
+              ? "flex flex-row overflow-x-auto snap-x snap-mandatory"
+              : "flex flex-col overflow-y-auto snap-y snap-mandatory"
           } h-full`}
           ref={pagesContainerRef}
           style={{
@@ -229,7 +227,7 @@ export default function StoryContainer({
             <div
               key={index}
               className={`story-page ${
-                readingMode === "page" ? "min-w-full snap-center" : "min-h-full snap-start"
+                readingMode === "page" ? "min-w-full snap-center" : "w-full min-h-full snap-start"
               } p-4 flex flex-col overflow-hidden`}
               style={{ 
                 height: readingMode === "page" ? `${containerHeight}px` : "auto",
@@ -335,7 +333,7 @@ export default function StoryContainer({
           )}
 
           {showSidebar && (
-            <div className="absolute right-4 bottom-[20px] flex flex-col items-center gap-4 z-30">
+            <div className="absolute right-4 bottom-[20px] flex flex-col items-center gap-4 z-50">
               <div className="action-button flex flex-col items-center cursor-pointer" onClick={toggleLike}>
                 <div
                   className={`action-icon w-[45px] h-[45px] rounded-full bg-white/80 dark:bg-paper-dark/80 flex justify-center items-center text-xl ${
@@ -404,9 +402,9 @@ export default function StoryContainer({
           {!showSidebar && (
             <button
               onClick={toggleSidebar}
-              className="absolute right-4 bottom-[20px] p-3 bg-highlight/80 dark:bg-highlight/80 rounded-full shadow-md text-white dark:text-white hover:bg-highlight transition-colors duration-200 z-50" // Increased z-index
+              className="absolute right-4 bottom-[20px] p-3 bg-highlight dark:bg-highlight rounded-full shadow-md hover:bg-highlight-dark transition-colors duration-200 z-50"
             >
-              <Eye className="w-5 h-5 text-white" /> {/* Explicitly set color */}
+              <Eye className="w-5 h-5 text-white dark:text-white" />
             </button>
           )}
         </>
