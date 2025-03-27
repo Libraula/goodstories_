@@ -32,6 +32,8 @@ export default function StoryContainer({
   const [contentHeight, setContentHeight] = useState(0)
   const contentRef = useRef<HTMLDivElement>(null)
 
+  const TRANSITION_DURATION = 400; // Consistent transition duration in ms
+
   useEffect(() => {
     const updateHeight = () => {
       const viewportHeight = window.innerHeight
@@ -39,6 +41,7 @@ export default function StoryContainer({
       const bottomNavHeight = 60
       const availableHeight = viewportHeight - headerHeight - bottomNavHeight - 10
       setContainerHeight(availableHeight)
+
       if (contentRef.current) {
         setContentHeight(contentRef.current.clientHeight)
       }
@@ -51,6 +54,7 @@ export default function StoryContainer({
 
   useEffect(() => {
     if (!containerRef.current) return
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -59,132 +63,78 @@ export default function StoryContainer({
       },
       { threshold: 0.7 }
     )
+
     observer.observe(containerRef.current)
     return () => {
-      if (containerRef.current) {
-        observer.unobserve(containerRef.current)
-      }
+      if (containerRef.current) observer.unobserve(containerRef.current)
     }
   }, [])
 
-  const centerCurrentPage = () => {
-    if (!pagesContainerRef.current) return
-    const container = pagesContainerRef.current
-    setIsTransitioning(true)
+  const scrollToPage = (index: number) => {
+    if (!pagesContainerRef.current || isTransitioning || 
+        index < 0 || index >= story.pages.length) return;
 
-    if (readingMode === "scroll") {
-      const pageWidth = container.clientWidth
-      const targetScrollPosition = pageWidth * currentPage
-      container.scrollTo({
-        left: targetScrollPosition,
-        behavior: "smooth",
-      })
-    } else {
-      const pageHeight = container.clientHeight
-      const targetScrollPosition = pageHeight * currentPage
-      container.scrollTo({
-        top: targetScrollPosition,
-        behavior: "smooth",
-      })
-    }
+    setIsTransitioning(true);
+    setCurrentPage(index);
 
-    setTimeout(() => {
-      setIsTransitioning(false)
-    }, 300)
-  }
+    const container = pagesContainerRef.current;
+    const dimension = readingMode === "page" ? 
+      container.clientWidth : container.clientHeight;
+    const position = dimension * index;
 
-  const handlePageChange = (index: number) => {
-    if (index >= 0 && index < story.pages.length && !isTransitioning) {
-      setCurrentPage(index)
-      setIsTransitioning(true)
+    container.scrollTo({
+      [readingMode === "page" ? 'left' : 'top']: position,
+      behavior: 'smooth'
+    });
 
-      if (pagesContainerRef.current) {
-        const container = pagesContainerRef.current
-        if (readingMode === "scroll") {
-          const pageWidth = container.clientWidth
-          container.scrollTo({
-            left: pageWidth * index,
-            behavior: "smooth",
-          })
-        } else {
-          const pageHeight = container.clientHeight
-          container.scrollTo({
-            top: pageHeight * index,
-            behavior: "smooth",
-          })
-        }
-        setTimeout(() => {
-          setIsTransitioning(false)
-        }, 300)
-      }
-    }
+    setTimeout(() => setIsTransitioning(false), TRANSITION_DURATION);
   }
 
   useEffect(() => {
+    const container = pagesContainerRef.current;
+    if (!container) return;
+
     const handleScroll = () => {
-      if (!pagesContainerRef.current || isTransitioning) return
-      const container = pagesContainerRef.current
+      if (isTransitioning) return;
 
-      if (readingMode === "scroll") {
-        const scrollLeft = container.scrollLeft
-        const pageWidth = container.clientWidth
-        const newPage = Math.round(scrollLeft / pageWidth)
-        if (newPage !== currentPage && newPage >= 0 && newPage < story.pages.length) {
-          setCurrentPage(newPage)
-        }
-      } else {
-        const scrollTop = container.scrollTop
-        const pageHeight = container.clientHeight
-        const newPage = Math.round(scrollTop / pageHeight)
-        if (newPage !== currentPage && newPage >= 0 && newPage < story.pages.length) {
-          setCurrentPage(newPage)
-        }
+      const dimension = readingMode === "page" ? 
+        container.clientWidth : container.clientHeight;
+      const scrollPosition = readingMode === "page" ? 
+        container.scrollLeft : container.scrollTop;
+      
+      const newPage = Math.round(scrollPosition / dimension);
+      if (newPage !== currentPage && 
+          newPage >= 0 && 
+          newPage < story.pages.length) {
+        setCurrentPage(newPage);
       }
-    }
+    };
 
-    const handleScrollEnd = () => {
-      if (isTransitioning) return
-      centerCurrentPage()
-    }
+    const debouncedSnap = debounce(() => {
+      if (!isTransitioning) scrollToPage(currentPage);
+    }, 100);
 
-    const container = pagesContainerRef.current
-    if (container) {
-      container.addEventListener("scroll", handleScroll)
-      container.addEventListener("touchend", handleScrollEnd)
-      return () => {
-        container.removeEventListener("scroll", handleScroll)
-        container.removeEventListener("touchend", handleScrollEnd)
-      }
-    }
-  }, [currentPage, story.pages.length, isTransitioning, readingMode])
+    container.addEventListener("scroll", handleScroll);
+    container.addEventListener("scroll", debouncedSnap);
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+      container.removeEventListener("scroll", debouncedSnap);
+    };
+  }, [currentPage, story.pages.length, isTransitioning, readingMode]);
 
   useEffect(() => {
-    const handleResize = () => {
-      centerCurrentPage()
-    }
-    window.addEventListener("resize", handleResize)
-    return () => window.removeEventListener("resize", handleResize)
-  }, [currentPage, readingMode])
+    scrollToPage(currentPage);
+  }, [readingMode]);
 
   const toggleLike = () => {
     setIsLiked(!isLiked)
     setLikeCount((prev) => (isLiked ? prev - 1 : prev + 1))
   }
 
-  const toggleBookmark = () => {
-    setIsBookmarked(!isBookmarked)
-  }
-
-  const toggleComments = () => {
-    setShowComments(!showComments)
-  }
-
-  const formatCount = (count: number) => {
-    if (count >= 1000) {
-      return (count / 1000).toFixed(1) + "K"
-    }
-    return count.toString()
-  }
+  const toggleBookmark = () => setIsBookmarked(!isBookmarked)
+  const toggleComments = () => setShowComments(!showComments)
+  const formatCount = (count: number) => 
+    count >= 1000 ? `${(count / 1000).toFixed(1)}K` : count.toString();
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const now = Date.now()
@@ -193,8 +143,7 @@ export default function StoryContainer({
     setTouchStartY(e.touches[0].clientY)
 
     if (e.touches.length === 2) {
-      const dist = getPinchDistance(e)
-      setInitialPinchDistance(dist)
+      setInitialPinchDistance(getPinchDistance(e))
     }
 
     if (now - lastTapTime < 300) {
@@ -208,7 +157,8 @@ export default function StoryContainer({
     if (e.touches.length === 2 && initialPinchDistance !== null) {
       const currentDistance = getPinchDistance(e)
       const pinchChange = currentDistance - initialPinchDistance
-      if (pinchChange > 50 || pinchChange < -50) {
+
+      if (Math.abs(pinchChange) > 50) {
         toggleSidebar()
         setInitialPinchDistance(null)
         e.preventDefault()
@@ -218,45 +168,32 @@ export default function StoryContainer({
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     setInitialPinchDistance(null)
-    if (!e.changedTouches || e.changedTouches.length === 0) return
+    if (!e.changedTouches?.length) return;
 
     const touchEndX = e.changedTouches[0].clientX
     const touchEndY = e.changedTouches[0].clientY
     const deltaX = touchEndX - touchStartX
     const deltaY = touchEndY - touchStartY
+    const swipeThreshold = 50;
 
-    if (readingMode === "scroll") {
-      if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
-        if (deltaX > 0 && currentPage > 0) {
-          handlePageChange(currentPage - 1)
-        } else if (deltaX < 0 && currentPage < story.pages.length - 1) {
-          handlePageChange(currentPage + 1)
-        } else {
-          centerCurrentPage()
-        }
-      } else {
-        centerCurrentPage()
+    if (readingMode === "page") {
+      if (Math.abs(deltaX) > swipeThreshold && Math.abs(deltaX) > Math.abs(deltaY)) {
+        if (deltaX > 0) scrollToPage(currentPage - 1);
+        else scrollToPage(currentPage + 1);
       }
     } else {
-      if (Math.abs(deltaY) > 50 && Math.abs(deltaY) > Math.abs(deltaX)) {
-        if (deltaY > 0 && currentPage > 0) {
-          handlePageChange(currentPage - 1)
-        } else if (deltaY < 0 && currentPage < story.pages.length - 1) {
-          handlePageChange(currentPage + 1)
-        } else {
-          centerCurrentPage()
-        }
-      } else {
-        centerCurrentPage()
+      if (Math.abs(deltaY) > swipeThreshold && Math.abs(deltaY) > Math.abs(deltaX)) {
+        if (deltaY > 0) scrollToPage(currentPage - 1);
+        else scrollToPage(currentPage + 1);
       }
     }
   }
 
-  const getPinchDistance = (e: React.TouchEvent) => {
-    const touch1 = e.touches[0]
-    const touch2 = e.touches[1]
-    return Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY)
-  }
+  const getPinchDistance = (e: React.TouchEvent) => 
+    Math.hypot(
+      e.touches[1].clientX - e.touches[0].clientX,
+      e.touches[1].clientY - e.touches[0].clientY
+    );
 
   const getPaginationSize = () => {
     const pageCount = story.pages.length
@@ -264,6 +201,15 @@ export default function StoryContainer({
     if (pageCount <= 5) return "w-2.5 h-2.5"
     if (pageCount <= 8) return "w-2 h-2"
     return "w-1.5 h-1.5"
+  }
+
+  // Debounce helper function
+  function debounce(func: () => void, wait: number) {
+    let timeout: NodeJS.Timeout;
+    return () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(func, wait);
+    };
   }
 
   return (
@@ -277,26 +223,30 @@ export default function StoryContainer({
       <div className="story-content h-full w-full flex flex-col relative">
         <div
           className={`story-pages flex-1 ${
-            readingMode === "scroll"
+            readingMode === "page"
               ? "flex overflow-x-auto snap-x snap-mandatory"
-              : "flex flex-col overflow-y-auto snap-y snap-mandatory"
+              : "overflow-y-auto snap-y snap-mandatory"
           } h-full`}
           ref={pagesContainerRef}
           style={{
             scrollbarWidth: "none",
             WebkitOverflowScrolling: "touch",
-            scrollSnapType: readingMode === "scroll" ? "x mandatory" : "y mandatory",
-            scrollBehavior: "smooth",
+            scrollSnapType: readingMode === "page" ? "x mandatory" : "y mandatory",
+            transition: `all ${TRANSITION_DURATION}ms ease-in-out`,
           }}
         >
           {story.pages.map((page, index) => (
             <div
               key={index}
               className={`story-page ${
-                readingMode === "scroll" ? "min-w-full snap-center" : "min-h-full snap-center"
+                readingMode === "page" ? "min-w-full snap-center" : "min-h-full snap-start"
               } p-4 flex flex-col overflow-hidden`}
-              style={{ height: `${containerHeight}px` }}
+              style={{ 
+                height: readingMode === "page" ? `${containerHeight}px` : 'auto',
+                transition: `all ${TRANSITION_DURATION}ms ease-in-out`
+              }}
             >
+              {/* Rest of your page content remains the same */}
               <div className="story-page-content h-full flex flex-col justify-between">
                 <div
                   ref={index === currentPage ? contentRef : null}
@@ -391,7 +341,7 @@ export default function StoryContainer({
                         ? "bg-highlight dark:bg-highlight scale-110"
                         : "bg-ink-light/50 dark:bg-ink-light/50"
                     }`}
-                    onClick={() => handlePageChange(index)}
+                    onClick={() => scrollToPage(index)}
                     aria-label={`Go to page ${index + 1}`}
                     aria-current={currentPage === index ? "true" : "false"}
                   />
@@ -400,6 +350,7 @@ export default function StoryContainer({
             </div>
           )}
 
+          {/* Action icons remain unchanged */}
           {showSidebar && (
             <div className="absolute right-4 bottom-[20px] flex flex-col items-center gap-4 z-30">
               <div className="action-button flex flex-col items-center cursor-pointer" onClick={toggleLike}>
