@@ -184,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoginError(null)
 
       // Use the production URL as the redirect URL
-      const redirectUrl = "https://v0-organize-website-layout.vercel.app"
+      const redirectUrl = "https://www.goodstories.app"
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -217,7 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Redirect to the production URL after sign out
       const { error } = await supabase.auth.signOut({
         options: {
-          redirectTo: "https://v0-organize-website-layout.vercel.app",
+          redirectTo: "https://www.goodstories.app",
         },
       })
 
@@ -275,4 +275,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   return useContext(AuthContext)
 }
-
