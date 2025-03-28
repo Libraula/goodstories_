@@ -20,3 +20,25 @@ export interface Story {
   commentCount: number
 }
 
+export interface DBStory {
+  id: string
+  title: string
+  content: string
+  author_id: string
+  is_published: boolean
+  created_at: string
+  updated_at: string
+  profiles: {
+    display_name: string
+    avatar_url: string
+  }
+}
+
+export interface Profile {
+  id: string
+  user_id: string
+  display_name: string
+  avatar_url: string
+  created_at: string
+  updated_at: string
+}
