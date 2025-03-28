@@ -13,9 +13,6 @@ import ProfileTab from "./profile-tab"
 import { useTheme } from "next-themes"
 import { ThemeToggle } from "./theme-toggle"
 import { useReadingSettings } from "@/contexts/reading-settings-context"
-import { useAuth } from "@/contexts/auth-context"
-import LoginModal from "./login-modal"
-import Image from "next/image"
 
 export default function StoryFeed() {
   const [activeTab, setActiveTab] = useState("homeTab")
@@ -32,9 +29,6 @@ export default function StoryFeed() {
   const [lastScrollPosition, setLastScrollPosition] = useState(0)
   const [scrollDirection, setScrollDirection] = useState<"none" | "horizontal" | "vertical">("none")
   const [isTransitioning, setIsTransitioning] = useState(false)
-  const { user, showLoginModal, hideLoginModal, isLoginModalOpen, userAvatarUrl, userDisplayName } = useAuth()
-  const [loginMessage, setLoginMessage] = useState<string>("")
-  const [requestedTab, setRequestedTab] = useState<string | null>(null)
 
   useEffect(() => {
     const handleResize = () => {
@@ -206,24 +200,8 @@ export default function StoryFeed() {
   }, [activeStoryIndex, readingMode, isScrolling, lastScrollTime, lastScrollPosition, stories.length, isTransitioning])
 
   const handleTabChange = (tabId: string) => {
-    // Allow navigation to any tab without showing login modal
     setActiveTab(tabId)
   }
-
-  // Handle login modal close
-  const handleLoginModalClose = () => {
-    hideLoginModal()
-    setRequestedTab(null)
-  }
-
-  // Effect to change tab after successful login
-  useEffect(() => {
-    if (user && requestedTab) {
-      setActiveTab(requestedTab)
-      setRequestedTab(null)
-      hideLoginModal()
-    }
-  }, [user, requestedTab, hideLoginModal])
 
   // Handle touch events for story navigation with smooth transitions
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -304,20 +282,6 @@ export default function StoryFeed() {
           <Search className="w-6 h-6 text-ink dark:text-ink cursor-pointer" />
           <BookmarkIcon className="w-6 h-6 text-ink dark:text-ink cursor-pointer" />
           <ThemeToggle />
-          {user && (
-            <div
-              className="w-8 h-8 rounded-full overflow-hidden cursor-pointer"
-              onClick={() => setActiveTab("profileTab")}
-            >
-              <Image
-                src={userAvatarUrl || "/placeholder.svg"}
-                alt="Profile"
-                width={32}
-                height={32}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          )}
         </div>
       </header>
 
@@ -465,9 +429,6 @@ export default function StoryFeed() {
           onClick={() => handleTabChange("profileTab")}
         />
       </nav>
-
-      {/* Login Modal - Only show for non-authenticated users */}
-      {!user && <LoginModal isOpen={isLoginModalOpen} onClose={handleLoginModalClose} message={loginMessage} />}
     </div>
   )
 }
