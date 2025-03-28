@@ -24,7 +24,7 @@ const genres: GenreCard[] = [
   },
   {
     image:
-      "https://images.unsplash.com/photo-1510172951991-856a62a9e395?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80",
+      "https://ix-marketing.imgix.net/autotagging.png?auto=format,compress&w=1946",
     title: "Modern Poetry",
     count: "64 collections",
   },
