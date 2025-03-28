@@ -1,296 +1,175 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { useToast } from "@/components/ui/use-toast"
-import { Send, X, Trash, Edit, Loader2 } from "lucide-react"
-import { useAuth } from "@/contexts/auth-context"
-import { formatDistanceToNow } from "date-fns"
-import type { Comment } from "@/lib/types"
+import { useState, useEffect, useRef } from "react"
+import Image from "next/image"
+import { Send, X } from "lucide-react"
+
+interface Comment {
+  id: number
+  author: {
+    name: string
+    avatar: string
+  }
+  text: string
+  time: string
+  likes: number
+}
 
 interface CommentsSectionProps {
   isOpen: boolean
   onClose: () => void
-  storyId: string
-  initialCommentCount?: number
+  commentCount: number
 }
 
-export function CommentsSection({ 
-  isOpen, 
-  onClose, 
-  storyId,
-  initialCommentCount = 0 
-}: CommentsSectionProps) {
-  const [comments, setComments] = useState<Comment[]>([])
+const initialComments: Comment[] = [
+  {
+    id: 1,
+    author: {
+      name: "Emma Wilson",
+      avatar: "https://randomuser.me/api/portraits/women/45.jpg",
+    },
+    text: "This story really resonated with me. The way the author describes the library makes me feel like I'm actually there.",
+    time: "2 hours ago",
+    likes: 24,
+  },
+  {
+    id: 2,
+    author: {
+      name: "Michael Chen",
+      avatar: "https://randomuser.me/api/portraits/men/32.jpg",
+    },
+    text: "I love the concept of books containing the voices of their readers. Such a beautiful metaphor for how stories live on through us.",
+    time: "5 hours ago",
+    likes: 18,
+  },
+  {
+    id: 3,
+    author: {
+      name: "Sarah Johnson",
+      avatar: "https://randomuser.me/api/portraits/women/22.jpg",
+    },
+    text: "The ending gave me chills. I'll be thinking about this one for days.",
+    time: "1 day ago",
+    likes: 42,
+  },
+]
+
+export default function CommentsSection({ isOpen, onClose, commentCount }: CommentsSectionProps) {
+  const [comments, setComments] = useState<Comment[]>(initialComments)
   const [newComment, setNewComment] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
-  const [editText, setEditText] = useState("")
-  const { user, showLoginModal } = useAuth()
-  const { toast } = useToast()
+  const modalRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (isOpen && storyId) {
-      fetchComments()
+    // Close modal when clicking outside
+    const handleClickOutside = (event: MouseEvent) => {
+      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
+        onClose()
+      }
     }
-  }, [isOpen, storyId])
 
-  const fetchComments = async () => {
-    setIsLoading(true)
-    try {
-      const response = await fetch(`/api/comments?storyId=${storyId}`)
-      if (!response.ok) throw new Error('Failed to fetch comments')
-      const data = await response.json()
-      setComments(data)
-    } catch (error) {
-      console.error('Error fetching comments:', error)
-      toast({
-        title: "Error",
-        description: "Failed to load comments",
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoading(false)
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside)
     }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [isOpen, onClose])
+
+  const handleAddComment = () => {
+    if (newComment.trim() === "") return
+
+    const comment: Comment = {
+      id: comments.length + 1,
+      author: {
+        name: "Alex Morgan",
+        avatar: "https://randomuser.me/api/portraits/women/65.jpg",
+      },
+      text: newComment,
+      time: "Just now",
+      likes: 0,
+    }
+
+    setComments([comment, ...comments])
+    setNewComment("")
   }
 
-  const handleSubmitComment = async () => {
-    if (!user) {
-      showLoginModal()
-      return
-    }
-
-    if (!newComment.trim()) return
-
-    setIsSubmitting(true)
-    try {
-      const response = await fetch('/api/comments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          storyId,
-          content: newComment,
-        }),
-      })
-
-      if (!response.ok) throw new Error('Failed to post comment')
-      
-      const data = await response.json()
-      setComments(prev => [data, ...prev])
-      setNewComment("")
-      toast({
-        title: "Comment posted",
-        description: "Your comment has been added",
-      })
-    } catch (error) {
-      console.error('Error posting comment:', error)
-      toast({
-        title: "Error",
-        description: "Failed to post comment",
-        variant: "destructive",
-      })
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const handleEditComment = (comment: Comment) => {
-    setEditingCommentId(comment.id)
-    setEditText(comment.content)
-  }
-
-  const handleSaveEdit = async () => {
-    if (!editingCommentId || !editText.trim()) return
-
-    setIsSubmitting(true)
-    try {
-      const response = await fetch('/api/comments', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          commentId: editingCommentId,
-          content: editText,
-        }),
-      })
-
-      if (!response.ok) throw new Error('Failed to update comment')
-      
-      const updatedComment = await response.json()
-      setComments(prev => prev.map(c => 
-        c.id === editingCommentId ? updatedComment : c
-      ))
-      setEditingCommentId(null)
-      setEditText("")
-      toast({
-        title: "Comment updated",
-        description: "Your comment has been updated",
-      })
-    } catch (error) {
-      console.error('Error updating comment:', error)
-      toast({
-        title: "Error",
-        description: "Failed to update comment",
-        variant: "destructive",
-      })
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const handleDeleteComment = async (commentId: string) => {
-    if (!confirm("Are you sure you want to delete this comment?")) return
-
-    try {
-      const response = await fetch(`/api/comments?commentId=${commentId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) throw new Error('Failed to delete comment')
-      
-      setComments(prev => prev.filter(c => c.id !== commentId))
-      toast({
-        title: "Comment deleted",
-        description: "Your comment has been removed",
-      })
-    } catch (error) {
-      console.error('Error deleting comment:', error)
-      toast({
-        title: "Error",
-        description: "Failed to delete comment",
-        variant: "destructive",
-      })
-    }
+  const handleLikeComment = (id: number) => {
+    setComments(comments.map((comment) => (comment.id === id ? { ...comment, likes: comment.likes + 1 } : comment)))
   }
 
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex justify-end">
-      <div className="bg-background w-full max-w-md h-full border-l shadow-lg flex flex-col">
-        <div className="p-4 border-b flex justify-between items-center">
-          <h2 className="text-xl font-bold">Comments ({comments.length})</h2>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-5 w-5" />
-          </Button>
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center lg:items-center">
+      <div
+        ref={modalRef}
+        className="comments-section bg-white dark:bg-paper rounded-t-xl lg:rounded-xl shadow-lg border border-paper-dark dark:border-paper-dark w-full max-w-[500px] max-h-[80vh] flex flex-col md:max-w-[400px] lg:max-w-[500px]"
+      >
+        <div className="comments-header p-3 border-b border-paper-dark dark:border-paper-dark flex justify-between items-center">
+          <h3 className="text-lg font-bold text-highlight dark:text-highlight">Comments ({commentCount})</h3>
+          <button onClick={onClose} className="text-ink-light dark:text-ink-light hover:text-ink dark:hover:text-ink">
+            <X size={20} />
+          </button>
         </div>
 
-        <div className="p-4 border-b">
-          <Textarea
+        <div className="comments-list flex-1 overflow-y-auto p-4">
+          {comments.map((comment) => (
+            <div key={comment.id} className="comment mb-4 last:mb-0">
+              <div className="comment-header flex items-center gap-2 mb-2">
+                <Image
+                  src={comment.author.avatar || "/placeholder.svg"}
+                  alt={comment.author.name}
+                  width={32}
+                  height={32}
+                  className="rounded-full"
+                />
+                <div>
+                  <div className="comment-author font-bold text-sm text-ink dark:text-ink">{comment.author.name}</div>
+                  <div className="comment-time text-xs text-ink-light dark:text-ink-light">{comment.time}</div>
+                </div>
+              </div>
+              <div className="comment-body ml-10">
+                <p className="text-sm text-ink dark:text-ink mb-2">{comment.text}</p>
+                <div className="comment-actions flex items-center gap-4">
+                  <button
+                    className="text-xs text-ink-light dark:text-ink-light flex items-center gap-1"
+                    onClick={() => handleLikeComment(comment.id)}
+                  >
+                    <i className="fas fa-heart"></i> {comment.likes}
+                  </button>
+                  <button className="text-xs text-ink-light dark:text-ink-light">Reply</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="comment-input-container p-3 border-t border-paper-dark dark:border-paper-dark flex items-center gap-2">
+          <Image
+            src="https://randomuser.me/api/portraits/women/65.jpg"
+            alt="Your avatar"
+            width={32}
+            height={32}
+            className="rounded-full"
+          />
+          <input
+            type="text"
             placeholder="Add a comment..."
+            className="flex-1 p-2 rounded-full bg-paper dark:bg-paper-dark text-ink dark:text-ink text-sm border border-paper-dark dark:border-paper focus:outline-none focus:ring-1 focus:ring-highlight"
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
-            className="resize-none"
+            onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
           />
-          <div className="mt-2 flex justify-end">
-            <Button 
-              onClick={handleSubmitComment} 
-              disabled={isSubmitting || !newComment.trim()}
-              size="sm"
-            >
-              {isSubmitting ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Send className="h-4 w-4 mr-2" />
-              )}
-              Post
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-auto p-4">
-          {isLoading ? (
-            <div className="flex justify-center items-center h-full">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : comments.length === 0 ? (
-            <div className="text-center text-muted-foreground py-8">
-              No comments yet. Be the first to comment!
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {comments.map((comment) => (
-                <div key={comment.id} className="border rounded-lg p-3">
-                  <div className="flex justify-between">
-                    <div className="flex items-center gap-2">
-                      <Avatar>
-                        <AvatarImage src={comment.profiles.avatar_url} />
-                        <AvatarFallback>{comment.profiles.display_name[0]}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">{comment.profiles.display_name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {user && user.id === comment.user_id && (
-                      <div className="flex gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8"
-                          onClick={() => handleEditComment(comment)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-destructive"
-                          onClick={() => handleDeleteComment(comment.id)}
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {editingCommentId === comment.id ? (
-                    <div className="mt-2">
-                      <Textarea
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        className="resize-none"
-                      />
-                      <div className="mt-2 flex justify-end gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => setEditingCommentId(null)}
-                        >
-                          Cancel
-                        </Button>
-                        <Button 
-                          size="sm"
-                          onClick={handleSaveEdit}
-                          disabled={isSubmitting || !editText.trim()}
-                        >
-                          {isSubmitting ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          ) : (
-                            <Edit className="h-4 w-4 mr-2" />
-                          )}
-                          Save
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="mt-2">{comment.content}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+          <button
+            className="w-8 h-8 rounded-full bg-highlight dark:bg-highlight flex items-center justify-center text-white"
+            onClick={handleAddComment}
+          >
+            <Send size={16} />
+          </button>
         </div>
       </div>
     </div>
   )
 }
+
