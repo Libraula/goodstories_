@@ -14,7 +14,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storageKey: "goodstories-auth-token",
     flowType: "pkce", // Use PKCE flow for better security
     // Set the site URL to the production URL
-    site: "https://v0-organize-website-layout.vercel.app",
+    site: "https://www.goodstories.app",
   },
 })
-
