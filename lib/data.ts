@@ -2,11 +2,13 @@ import type { Story } from "./types"
 
 export const stories: Story[] = [
   {
+    id: "story-1",
     title: "The Library of Lost Voices",
     author: {
       name: "Clara Bennett",
       avatar: "https://randomuser.me/api/portraits/women/33.jpg",
     },
+    author_id: "user_1",
     pages: [
       {
         type: "text",
@@ -37,13 +39,18 @@ export const stories: Story[] = [
     readTime: "5 min read",
     likeCount: 2400,
     commentCount: 512,
+    bookmarkCount: 256,
+    created_at: "2025-03-20T12:00:00Z",
+    updated_at: "2025-03-20T12:00:00Z"
   },
   {
+    id: "story-2",
     title: "How We Remember",
     author: {
       name: "David Park",
       avatar: "https://randomuser.me/api/portraits/men/45.jpg",
     },
+    author_id: "user_2",
     pages: [
       {
         type: "image",
@@ -84,13 +91,18 @@ export const stories: Story[] = [
     readTime: "4 min read",
     likeCount: 4100,
     commentCount: 893,
+    bookmarkCount: 456,
+    created_at: "2025-03-15T15:30:00Z",
+    updated_at: "2025-03-15T15:30:00Z"
   },
   {
+    id: "story-3",
     title: "The Last Bookstore on Earth",
     author: {
       name: "Jane Doe",
       avatar: "https://randomuser.me/api/portraits/women/22.jpg",
     },
+    author_id: "user_3",
     pages: [
       {
         type: "text",
@@ -121,13 +133,18 @@ export const stories: Story[] = [
     readTime: "6 min read",
     likeCount: 1200,
     commentCount: 345,
+    bookmarkCount: 256,
+    created_at: "2025-03-20T12:00:00Z",
+    updated_at: "2025-03-20T12:00:00Z"
   },
   {
+    id: "story-4",
     title: "The Clockmaker's Apprentice",
     author: {
       name: "John Smith",
       avatar: "https://randomuser.me/api/portraits/men/12.jpg",
     },
+    author_id: "user_4",
     pages: [
       {
         type: "text",
@@ -158,13 +175,18 @@ export const stories: Story[] = [
     readTime: "7 min read",
     likeCount: 1800,
     commentCount: 412,
+    bookmarkCount: 256,
+    created_at: "2025-03-20T12:00:00Z",
+    updated_at: "2025-03-20T12:00:00Z"
   },
   {
+    id: "story-5",
     title: "The AI Poet",
     author: {
       name: "Emily Carter",
       avatar: "https://randomuser.me/api/portraits/women/44.jpg",
     },
+    author_id: "user_5",
     pages: [
       {
         type: "text",
@@ -195,13 +217,18 @@ export const stories: Story[] = [
     readTime: "8 min read",
     likeCount: 2100,
     commentCount: 567,
+    bookmarkCount: 256,
+    created_at: "2025-03-20T12:00:00Z",
+    updated_at: "2025-03-20T12:00:00Z"
   },
   {
+    id: "story-6",
     title: "The Starry Night Cafe",
     author: {
       name: "Carlos Rodriguez",
       avatar: "https://randomuser.me/api/portraits/men/23.jpg",
     },
+    author_id: "user_6",
     pages: [
       {
         type: "text",
@@ -232,13 +259,18 @@ export const stories: Story[] = [
     readTime: "9 min read",
     likeCount: 2500,
     commentCount: 678,
+    bookmarkCount: 256,
+    created_at: "2025-03-20T12:00:00Z",
+    updated_at: "2025-03-20T12:00:00Z"
   },
   {
+    id: "story-7",
     title: "The Time Traveler's Watch",
     author: {
       name: "Sophia Lee",
       avatar: "https://randomuser.me/api/portraits/women/11.jpg",
     },
+    author_id: "user_7",
     pages: [
       {
         type: "text",
@@ -269,13 +301,18 @@ export const stories: Story[] = [
     readTime: "10 min read",
     likeCount: 2800,
     commentCount: 789,
+    bookmarkCount: 256,
+    created_at: "2025-03-20T12:00:00Z",
+    updated_at: "2025-03-20T12:00:00Z"
   },
   {
+    id: "story-8",
     title: "The City of Whispering Walls",
     author: {
       name: "Ethan White",
       avatar: "https://randomuser.me/api/portraits/men/34.jpg",
     },
+    author_id: "user_8",
     pages: [
       {
         type: "text",
@@ -306,13 +343,18 @@ export const stories: Story[] = [
     readTime: "11 min read",
     likeCount: 3100,
     commentCount: 890,
+    bookmarkCount: 256,
+    created_at: "2025-03-20T12:00:00Z",
+    updated_at: "2025-03-20T12:00:00Z"
   },
   {
+    id: "story-9",
     title: "The Alchemist's Secret",
     author: {
       name: "Olivia Green",
       avatar: "https://randomuser.me/api/portraits/women/2.jpg",
     },
+    author_id: "user_9",
     pages: [
       {
         type: "text",
@@ -343,6 +385,8 @@ export const stories: Story[] = [
     readTime: "12 min read",
     likeCount: 3400,
     commentCount: 901,
+    bookmarkCount: 256,
+    created_at: "2025-03-20T12:00:00Z",
+    updated_at: "2025-03-20T12:00:00Z"
   },
 ]
-
