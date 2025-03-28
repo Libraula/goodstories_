@@ -1,54 +1,111 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef, useEffect } from "react"
 import Image from "next/image"
 import { Heart, MessageCircle, Bookmark, Share2, Eye, EyeOff } from "lucide-react"
 import type { Story } from "@/lib/types"
 import CommentsSection from "./comments-section"
 import { useReadingSettings } from "@/contexts/reading-settings-context"
+import { useAuth } from "@/contexts/auth-context"
+import { supabase } from "@/lib/supabase"
 
 export default function StoryContainer({
   story,
   showSidebar,
   toggleSidebar,
-}: { story: Story; showSidebar: boolean; toggleSidebar: () => void }) {
+}: {
+  story?: Story
+  showSidebar: boolean
+  toggleSidebar: () => void
+}) {
   const [currentPage, setCurrentPage] = useState(0)
   const [isLiked, setIsLiked] = useState(false)
   const [isBookmarked, setIsBookmarked] = useState(false)
-  const [likeCount, setLikeCount] = useState(story.likeCount)
+  const [likeCount, setLikeCount] = useState(story?.likeCount ?? 0)
   const [showComments, setShowComments] = useState(false)
   const pagesContainerRef = useRef<HTMLDivElement>(null)
   const [lastTapTime, setLastTapTime] = useState(0)
-  const [touchStartTime, setTouchStartTime] = useState(0)
-  const [initialPinchDistance, setInitialPinchDistance] = useState<number | null>(null)
-  const [containerHeight, setContainerHeight] = useState(0)
   const [touchStartX, setTouchStartX] = useState(0)
   const [touchStartY, setTouchStartY] = useState(0)
+  const [initialPinchDistance, setInitialPinchDistance] = useState<number | null>(null)
+  const [containerHeight, setContainerHeight] = useState(0)
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const { readingMode } = useReadingSettings()
-  const [contentHeight, setContentHeight] = useState(0)
   const contentRef = useRef<HTMLDivElement>(null)
+  const { user, showLoginModal } = useAuth()
+  const [isStoryLoaded, setIsStoryLoaded] = useState(false)
 
-  // Calculate container height on mount and resize
+  const TRANSITION_DURATION = 420 // Increased from 400ms to 420ms (5% slower)
+
+  useEffect(() => {
+    if (story) {
+      setIsStoryLoaded(true)
+    } else {
+      setIsStoryLoaded(false)
+    }
+  }, [story])
+
+  // Check if user has liked or bookmarked this story
+  useEffect(() => {
+    let isMounted = true // Add a flag to track component mount status
+
+    const checkUserInteractions = async () => {
+      if (!user || !story) return
+
+      // Check if user has liked this story
+      const { data: likeData, error: likeError } = await supabase
+        .from("likes")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("story_id", story.title)
+        .single()
+
+      if (!isMounted) return // Check if component is still mounted
+
+      if (!likeError && likeData) {
+        setIsLiked(true)
+      } else {
+        setIsLiked(false) // Ensure isLiked is always set
+      }
+
+      // Check if user has bookmarked this story
+      const { data: bookmarkData, error: bookmarkError } = await supabase
+        .from("bookmarks")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("story_id", story.title)
+        .single()
+
+      if (!isMounted) return // Check if component is still mounted
+
+      if (!bookmarkError && bookmarkData) {
+        setIsBookmarked(true)
+      } else {
+        setIsBookmarked(false) // Ensure isBookmarked is always set
+      }
+    }
+
+    checkUserInteractions()
+
+    return () => {
+      isMounted = false // Set the flag to false when the component unmounts
+    }
+  }, [user, story])
+
+  if (!story) {
+    return <div>Loading story...</div>
+  }
+
   useEffect(() => {
     const updateHeight = () => {
-      // Calculate available height (viewport height minus header and bottom nav)
       const viewportHeight = window.innerHeight
-      const headerHeight = 60 // Approximate header height
-      const bottomNavHeight = 60 // Bottom nav height
-
-      // Calculate the available height for content
+      const headerHeight = 60
+      const bottomNavHeight = 60
       const availableHeight = viewportHeight - headerHeight - bottomNavHeight - 10
       setContainerHeight(availableHeight)
-
-      // Update content height for responsive text display
-      if (contentRef.current) {
-        setContentHeight(contentRef.current.clientHeight)
-      }
     }
 
     updateHeight()
@@ -56,188 +113,163 @@ export default function StoryContainer({
     return () => window.removeEventListener("resize", updateHeight)
   }, [])
 
-  // Set up intersection observer to detect when this story is visible
   useEffect(() => {
     if (!containerRef.current) return
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          // Update visibility state based on intersection
           setIsVisible(entry.isIntersecting)
         })
       },
-      {
-        threshold: 0.7, // Consider visible when 70% of the story is in view
-      },
+      { threshold: 0.7 },
     )
 
     observer.observe(containerRef.current)
-
     return () => {
-      if (containerRef.current) {
-        observer.unobserve(containerRef.current)
-      }
+      if (containerRef.current) observer.unobserve(containerRef.current)
     }
   }, [])
 
-  // Ensure pages are properly centered after any scroll
-  const centerCurrentPage = () => {
-    if (!pagesContainerRef.current) return
+  const scrollToPage = (index: number) => {
+    if (!pagesContainerRef.current || isTransitioning || index < 0 || index >= story.pages.length) return
+
+    setIsTransitioning(true)
+    setCurrentPage(index)
 
     const container = pagesContainerRef.current
+    const dimension = readingMode === "page" ? container.clientWidth : container.clientHeight
+    const position = dimension * index
 
-    // Set transitioning state to prevent multiple updates
-    setIsTransitioning(true)
+    container.scrollTo({
+      [readingMode === "page" ? "left" : "top"]: position,
+      behavior: "smooth", // Reintroduced smooth scrolling
+    })
 
-    // Snap to the nearest page based on reading mode
-    if (readingMode === "page") {
-      // In page mode, pages are arranged horizontally
-      const pageWidth = container.clientWidth
-      const targetScrollPosition = pageWidth * currentPage
-
-      container.scrollTo({
-        left: targetScrollPosition,
-        behavior: "smooth",
-      })
-    } else {
-      // In scroll mode, pages are arranged vertically
-      const pageHeight = container.clientHeight
-      const targetScrollPosition = pageHeight * currentPage
-
-      container.scrollTo({
-        top: targetScrollPosition,
-        behavior: "smooth",
-      })
-    }
-
-    // Reset transitioning state after animation completes
     setTimeout(() => {
       setIsTransitioning(false)
-    }, 300)
+    }, TRANSITION_DURATION)
   }
 
-  // Handle page changes
-  const handlePageChange = (index: number) => {
-    if (index >= 0 && index < story.pages.length && !isTransitioning) {
-      // Update current page immediately for UI feedback
-      setCurrentPage(index)
-      setIsTransitioning(true)
-
-      // Scroll to the selected page based on reading mode
-      if (pagesContainerRef.current) {
-        if (readingMode === "page") {
-          // In page mode, pages are arranged horizontally
-          const pageWidth = pagesContainerRef.current.clientWidth
-          pagesContainerRef.current.scrollTo({
-            left: pageWidth * index,
-            behavior: "smooth",
-          })
-        } else {
-          // In scroll mode, pages are arranged vertically
-          const pageHeight = pagesContainerRef.current.clientHeight
-          pagesContainerRef.current.scrollTo({
-            top: pageHeight * index,
-            behavior: "smooth",
-          })
-        }
-
-        // Reset transitioning state after animation completes
-        setTimeout(() => {
-          setIsTransitioning(false)
-        }, 300)
-      }
-    }
-  }
-
-  // Update current page based on scroll position
   useEffect(() => {
-    const handleScroll = () => {
-      if (!pagesContainerRef.current || isTransitioning) return
-
-      if (readingMode === "page") {
-        // In page mode, pages are arranged horizontally
-        const scrollLeft = pagesContainerRef.current.scrollLeft
-        const pageWidth = pagesContainerRef.current.clientWidth
-        const newPage = Math.round(scrollLeft / pageWidth)
-
-        if (newPage !== currentPage && newPage >= 0 && newPage < story.pages.length) {
-          setCurrentPage(newPage)
-        }
-      } else {
-        // In scroll mode, pages are arranged vertically
-        const scrollTop = pagesContainerRef.current.scrollTop
-        const pageHeight = pagesContainerRef.current.clientHeight
-        const newPage = Math.round(scrollTop / pageHeight)
-
-        if (newPage !== currentPage && newPage >= 0 && newPage < story.pages.length) {
-          setCurrentPage(newPage)
-        }
-      }
-    }
-
-    const handleScrollEnd = () => {
-      if (isTransitioning) return
-      centerCurrentPage()
-    }
-
     const container = pagesContainerRef.current
-    if (container) {
-      container.addEventListener("scroll", handleScroll)
-      container.addEventListener("touchend", handleScrollEnd)
+    if (!container) return
 
-      return () => {
-        container.removeEventListener("scroll", handleScroll)
-        container.removeEventListener("touchend", handleScrollEnd)
+    const handleScroll = () => {
+      if (isTransitioning) return
+
+      const dimension = readingMode === "page" ? container.clientWidth : container.clientHeight
+      const scrollPosition = readingMode === "page" ? container.scrollLeft : container.scrollTop
+      const newPage = Math.round(scrollPosition / dimension)
+
+      if (newPage !== currentPage && newPage >= 0 && newPage < story.pages.length) {
+        setCurrentPage(newPage)
+        scrollToPage(newPage)
       }
     }
+
+    container.addEventListener("scroll", handleScroll)
+    return () => container.removeEventListener("scroll", handleScroll)
   }, [currentPage, story.pages.length, isTransitioning, readingMode])
 
-  // Ensure pages are centered after any resize
   useEffect(() => {
-    const handleResize = () => {
-      centerCurrentPage()
+    scrollToPage(currentPage)
+  }, [readingMode])
+
+  const toggleLike = async () => {
+    if (!user) {
+      showLoginModal()
+      return
     }
 
-    window.addEventListener("resize", handleResize)
-    return () => window.removeEventListener("resize", handleResize)
-  }, [currentPage, readingMode])
+    // Toggle like state
+    const newIsLiked = !isLiked
+    setIsLiked(newIsLiked)
+    setLikeCount((prev) => (newIsLiked ? prev + 1 : prev - 1))
 
-  const toggleLike = () => {
-    setIsLiked(!isLiked)
-    setLikeCount((prev) => (isLiked ? prev - 1 : prev + 1))
+    // Update database
+    if (newIsLiked) {
+      // Add like to database
+      const { error } = await supabase.from("likes").insert({
+        user_id: user.id,
+        story_id: story.title,
+      })
+
+      if (error) {
+        console.error("Error adding like:", error)
+        // Revert UI state if there was an error
+        setIsLiked(false)
+        setLikeCount((prev) => prev - 1)
+      }
+    } else {
+      // Remove like from database
+      const { error } = await supabase.from("likes").delete().eq("user_id", user.id).eq("story_id", story.title)
+
+      if (error) {
+        console.error("Error removing like:", error)
+        // Revert UI state if there was an error
+        setIsLiked(true)
+        setLikeCount((prev) => prev + 1)
+      }
+    }
   }
 
-  const toggleBookmark = () => {
-    setIsBookmarked(!isBookmarked)
+  const toggleBookmark = async () => {
+    if (!user) {
+      showLoginModal()
+      return
+    }
+
+    // Toggle bookmark state
+    const newIsBookmarked = !isBookmarked
+    setIsBookmarked(newIsBookmarked)
+
+    // Update database
+    if (newIsBookmarked) {
+      // Add bookmark to database
+      const { error } = await supabase.from("bookmarks").insert({
+        user_id: user.id,
+        story_id: story.title,
+      })
+
+      if (error) {
+        console.error("Error adding bookmark:", error)
+        // Revert UI state if there was an error
+        setIsBookmarked(false)
+      }
+    } else {
+      // Remove bookmark from database
+      const { error } = await supabase.from("bookmarks").delete().eq("user_id", user.id).eq("story_id", story.title)
+
+      if (error) {
+        console.error("Error removing bookmark:", error)
+        // Revert UI state if there was an error
+        setIsBookmarked(true)
+      }
+    }
   }
 
   const toggleComments = () => {
+    if (!user) {
+      showLoginModal()
+      return
+    }
+
     setShowComments(!showComments)
   }
 
-  const formatCount = (count: number) => {
-    if (count >= 1000) {
-      return (count / 1000).toFixed(1) + "K"
-    }
-    return count.toString()
-  }
+  const formatCount = (count: number) => (count >= 1000 ? `${(count / 1000).toFixed(1)}K` : count.toString())
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const now = Date.now()
-    setTouchStartTime(now)
     setTouchStartX(e.touches[0].clientX)
     setTouchStartY(e.touches[0].clientY)
 
-    // Handle pinch detection
     if (e.touches.length === 2) {
-      const dist = getPinchDistance(e)
-      setInitialPinchDistance(dist)
+      setInitialPinchDistance(getPinchDistance(e))
     }
 
-    // Handle double tap detection
     if (now - lastTapTime < 300) {
-      // Double tap detected
       toggleSidebar()
       e.preventDefault()
     }
@@ -245,19 +277,10 @@ export default function StoryContainer({
   }
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    // Handle pinch gesture
     if (e.touches.length === 2 && initialPinchDistance !== null) {
       const currentDistance = getPinchDistance(e)
       const pinchChange = currentDistance - initialPinchDistance
-
-      // If pinch out (zoom in) is detected
-      if (pinchChange > 50) {
-        toggleSidebar()
-        setInitialPinchDistance(null)
-        e.preventDefault()
-      }
-      // If pinch in (zoom out) is detected
-      else if (pinchChange < -50) {
+      if (Math.abs(pinchChange) > 50) {
         toggleSidebar()
         setInitialPinchDistance(null)
         e.preventDefault()
@@ -267,66 +290,36 @@ export default function StoryContainer({
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     setInitialPinchDistance(null)
+    if (!e.changedTouches?.length) return
 
-    // Implement faster swipe detection based on reading mode
-    if (e.changedTouches && e.changedTouches.length > 0) {
-      const touchEndX = e.changedTouches[0].clientX
-      const touchEndY = e.changedTouches[0].clientY
-      const deltaX = touchEndX - touchStartX
-      const deltaY = touchEndY - touchStartY
+    const touchEndX = e.changedTouches[0].clientX
+    const touchEndY = e.changedTouches[0].clientY
+    const deltaX = touchEndX - touchStartX
+    const deltaY = touchEndY - touchStartY
+    const swipeThreshold = 50
 
-      if (readingMode === "page") {
-        // In page mode, horizontal swipe changes pages
-        if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
-          if (deltaX > 0 && currentPage > 0) {
-            // Swipe right - go to previous page
-            handlePageChange(currentPage - 1)
-          } else if (deltaX < 0 && currentPage < story.pages.length - 1) {
-            // Swipe left - go to next page
-            handlePageChange(currentPage + 1)
-          } else {
-            // If we can't change page, ensure current page is centered
-            centerCurrentPage()
-          }
-        } else {
-          // Small swipe - ensure current page is centered
-          centerCurrentPage()
-        }
-      } else {
-        // In scroll mode, vertical swipe changes pages
-        if (Math.abs(deltaY) > 50 && Math.abs(deltaY) > Math.abs(deltaX)) {
-          if (deltaY > 0 && currentPage > 0) {
-            // Swipe down - go to previous page
-            handlePageChange(currentPage - 1)
-          } else if (deltaY < 0 && currentPage < story.pages.length - 1) {
-            // Swipe up - go to next page
-            handlePageChange(currentPage + 1)
-          } else {
-            // If we can't change page, ensure current page is centered
-            centerCurrentPage()
-          }
-        } else {
-          // Small swipe - ensure current page is centered
-          centerCurrentPage()
-        }
+    if (readingMode === "page") {
+      if (Math.abs(deltaX) > swipeThreshold && Math.abs(deltaX) > Math.abs(deltaY)) {
+        if (deltaX > 0 && currentPage > 0) scrollToPage(currentPage - 1)
+        else if (deltaX < 0 && currentPage < story.pages.length - 1) scrollToPage(currentPage + 1)
+      }
+    } else {
+      if (Math.abs(deltaY) > swipeThreshold && Math.abs(deltaY) > Math.abs(deltaX)) {
+        if (deltaY > 0 && currentPage > 0) scrollToPage(currentPage - 1)
+        else if (deltaY < 0 && currentPage < story.pages.length - 1) scrollToPage(currentPage + 1)
       }
     }
   }
 
-  // Helper function to calculate distance between two touch points
-  const getPinchDistance = (e: React.TouchEvent) => {
-    const touch1 = e.touches[0]
-    const touch2 = e.touches[1]
-    return Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY)
-  }
+  const getPinchDistance = (e: React.TouchEvent) =>
+    Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY)
 
-  // Calculate pagination size based on story length
   const getPaginationSize = () => {
     const pageCount = story.pages.length
-    if (pageCount <= 3) return "w-3 h-3" // Default size
-    if (pageCount <= 5) return "w-2.5 h-2.5" // Slightly smaller
-    if (pageCount <= 8) return "w-2 h-2" // Even smaller
-    return "w-1.5 h-1.5" // Smallest size for many pages
+    if (pageCount <= 3) return "w-3 h-3"
+    if (pageCount <= 5) return "w-2.5 h-2.5"
+    if (pageCount <= 8) return "w-2 h-2"
+    return "w-1.5 h-1.5"
   }
 
   return (
@@ -338,28 +331,28 @@ export default function StoryContainer({
       onTouchEnd={handleTouchEnd}
     >
       <div className="story-content h-full w-full flex flex-col relative">
-        {/* Story Pages Container - Direction based on reading mode */}
         <div
           className={`story-pages flex-1 ${
             readingMode === "page"
-              ? "flex overflow-x-auto snap-x snap-mandatory"
-              : "overflow-y-auto snap-y snap-mandatory"
+              ? "flex flex-row overflow-x-auto snap-x snap-mandatory"
+              : "flex flex-col overflow-y-auto snap-y snap-mandatory"
           } h-full`}
           ref={pagesContainerRef}
           style={{
             scrollbarWidth: "none",
             WebkitOverflowScrolling: "touch",
             scrollSnapType: readingMode === "page" ? "x mandatory" : "y mandatory",
-            scrollBehavior: "smooth",
           }}
         >
           {story.pages.map((page, index) => (
             <div
               key={index}
               className={`story-page ${
-                readingMode === "page" ? "min-w-full snap-center" : "min-h-full snap-center"
+                readingMode === "page" ? "min-w-full snap-center" : "w-full min-h-full snap-start"
               } p-4 flex flex-col overflow-hidden`}
-              style={{ height: `${containerHeight}px` }}
+              style={{
+                height: readingMode === "page" ? `${containerHeight}px` : "auto",
+              }}
             >
               <div className="story-page-content h-full flex flex-col justify-between">
                 <div
@@ -442,10 +435,8 @@ export default function StoryContainer({
         </div>
       </div>
 
-      {/* Only show controls when this story is visible */}
       {isVisible && (
         <>
-          {/* Pagination Controls - Only show in page mode and at the bottom */}
           {readingMode === "page" && (
             <div className="absolute bottom-[20px] left-1/2 transform -translate-x-1/2 z-30">
               <div className="pagination-container flex gap-2 bg-white/80 dark:bg-paper-dark/80 backdrop-blur-sm rounded-full px-4 py-2 shadow-md border border-paper-dark/30 dark:border-paper/30">
@@ -457,7 +448,7 @@ export default function StoryContainer({
                         ? "bg-highlight dark:bg-highlight scale-110"
                         : "bg-ink-light/50 dark:bg-ink-light/50"
                     }`}
-                    onClick={() => handlePageChange(index)}
+                    onClick={() => scrollToPage(index)}
                     aria-label={`Go to page ${index + 1}`}
                     aria-current={currentPage === index ? "true" : "false"}
                   />
@@ -466,9 +457,8 @@ export default function StoryContainer({
             </div>
           )}
 
-          {/* Action Icons - Keep in original position (right side) */}
           {showSidebar && (
-            <div className="absolute right-4 bottom-[20px] flex flex-col items-center gap-4 z-30">
+            <div className="absolute right-4 bottom-[20px] flex flex-col items-center gap-4 z-50">
               <div className="action-button flex flex-col items-center cursor-pointer" onClick={toggleLike}>
                 <div
                   className={`action-icon w-[45px] h-[45px] rounded-full bg-white/80 dark:bg-paper-dark/80 flex justify-center items-center text-xl ${
@@ -537,15 +527,14 @@ export default function StoryContainer({
           {!showSidebar && (
             <button
               onClick={toggleSidebar}
-              className="absolute right-4 bottom-[20px] p-3 bg-highlight/80 dark:bg-highlight/80 rounded-full shadow-md text-white dark:text-white hover:bg-highlight transition-colors duration-200 z-30"
+              className="absolute right-4 bottom-[20px] p-3 bg-highlight dark:bg-highlight rounded-full shadow-md hover:bg-highlight-dark transition-colors duration-200 z-50"
             >
-              <Eye className="w-5 h-5 fill-current" />
+              <Eye className="w-5 h-5 text-white dark:text-white" />
             </button>
           )}
         </>
       )}
 
-      {/* Comments Modal */}
       <CommentsSection isOpen={showComments} onClose={() => setShowComments(false)} commentCount={story.commentCount} />
     </div>
   )
