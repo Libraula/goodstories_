@@ -1,7 +1,6 @@
 "use client"
 
 import Image from "next/image"
-import { useAuth } from "@/contexts/auth-context"
 
 interface GenreCard {
   image: string
@@ -49,26 +48,12 @@ const genres: GenreCard[] = [
 ]
 
 export default function DiscoverTab() {
-  const { user, showLoginModal } = useAuth()
-
-  const handleCardClick = (genre: GenreCard) => {
-    // Allow all users to view content, but show login modal for interactions if not logged in
-    console.log(`Viewing ${genre.title}`)
-
-    // For now, we'll just log the action, but in a real app, you'd navigate to the genre page
-    // If we need to restrict certain actions, we can still check for user authentication
-    if (!user && genre.title === "Premium Content") {
-      showLoginModal()
-    }
-  }
-
   return (
     <div className="discover-grid grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-5 h-full overflow-y-auto">
       {genres.map((genre, index) => (
         <div
           key={index}
-          className="discover-card bg-white dark:bg-paper-dark rounded-lg overflow-hidden shadow-sm border border-paper-dark dark:border-paper cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => handleCardClick(genre)}
+          className="discover-card bg-white dark:bg-paper-dark rounded-lg overflow-hidden shadow-sm border border-paper-dark dark:border-paper"
         >
           <Image
             src={genre.image || "/placeholder.svg"}

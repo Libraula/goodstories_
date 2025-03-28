@@ -4,8 +4,6 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ReadingSettingsProvider } from "@/contexts/reading-settings-context"
-import { AuthProvider } from "@/contexts/auth-context"
-import AuthRedirectHandler from "@/components/auth-redirect-handler"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -29,11 +27,7 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <AuthProvider>
-            <ReadingSettingsProvider>
-              <AuthRedirectHandler>{children}</AuthRedirectHandler>
-            </ReadingSettingsProvider>
-          </AuthProvider>
+          <ReadingSettingsProvider>{children}</ReadingSettingsProvider>
         </ThemeProvider>
       </body>
     </html>

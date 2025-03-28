@@ -1,31 +1,9 @@
 "use client"
 
-import { useAuth } from "@/contexts/auth-context"
-
 export default function CreateTab() {
-  const { user, showLoginModal } = useAuth()
-
-  const handleOptionClick = (option: string) => {
-    // Allow all users to view content, but show login modal for interactions if not logged in
-    console.log(`Selected ${option}`)
-
-    // For publishing or saving content, we still need authentication
-    if (!user && (option.includes("Publish") || option.includes("Save"))) {
-      showLoginModal()
-      return
-    }
-
-    // Otherwise, allow access to the creation tools
-    console.log(`Opening ${option} editor`)
-    // In a real app, you'd navigate to the editor page or open an editor modal
-  }
-
   return (
     <div className="create-tab p-5 text-center h-full overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-      <div
-        className="create-option bg-white dark:bg-paper-dark rounded-lg p-6 shadow-sm border border-paper-dark dark:border-paper cursor-pointer hover:shadow-md transition-shadow"
-        onClick={() => handleOptionClick("Write a Story")}
-      >
+      <div className="create-option bg-white dark:bg-paper-dark rounded-lg p-6 shadow-sm border border-paper-dark dark:border-paper cursor-pointer">
         <div className="create-icon text-3xl text-highlight dark:text-highlight mb-4">
           <i className="fas fa-keyboard"></i>
         </div>
@@ -35,10 +13,7 @@ export default function CreateTab() {
         </p>
       </div>
 
-      <div
-        className="create-option bg-white dark:bg-paper-dark rounded-lg p-6 shadow-sm border border-paper-dark dark:border-paper cursor-pointer hover:shadow-md transition-shadow"
-        onClick={() => handleOptionClick("Create an Essay")}
-      >
+      <div className="create-option bg-white dark:bg-paper-dark rounded-lg p-6 shadow-sm border border-paper-dark dark:border-paper cursor-pointer">
         <div className="create-icon text-3xl text-highlight dark:text-highlight mb-4">
           <i className="fas fa-camera"></i>
         </div>
@@ -48,10 +23,7 @@ export default function CreateTab() {
         </p>
       </div>
 
-      <div
-        className="create-option bg-white dark:bg-paper-dark rounded-lg p-6 shadow-sm border border-paper-dark dark:border-paper cursor-pointer hover:shadow-md transition-shadow"
-        onClick={() => handleOptionClick("Record Audio")}
-      >
+      <div className="create-option bg-white dark:bg-paper-dark rounded-lg p-6 shadow-sm border border-paper-dark dark:border-paper cursor-pointer">
         <div className="create-icon text-3xl text-highlight dark:text-highlight mb-4">
           <i className="fas fa-microphone"></i>
         </div>
