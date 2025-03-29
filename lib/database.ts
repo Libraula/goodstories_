@@ -1,10 +1,33 @@
-import { supabase } from './supabase'
-import type { Database, StoryPage } from './database.types'
 import { v4 as uuidv4 } from 'uuid'
+import { createClient } from '@/utils/supabase/client'
+import type { Database, StoryPage, StoryInsert } from './database.types'
+import type { Story } from './types'
+
+// Create Supabase client
+const supabase = createClient()
+
+// Define StoryRow type for database operations
+interface StoryRow {
+  id: string;
+  title: string;
+  author_id: string;
+  pages?: StoryPage[];
+  tags?: string[];
+  read_time?: string;
+  like_count?: number;
+  comment_count?: number;
+  bookmark_count?: number;
+  created_at: string;
+  updated_at: string;
+  profiles?: {
+    id: string;
+    name?: string;
+    username?: string;
+    avatar_url?: string;
+  };
+}
 
 // Story types
-export type Story = Database['public']['Tables']['stories']['Row']
-export type StoryInsert = Database['public']['Tables']['stories']['Insert']
 export type StoryUpdate = Database['public']['Tables']['stories']['Update']
 
 // Comment types
@@ -34,6 +57,82 @@ export function calculateReadTime(pages: StoryPage[]): string {
   return `${minutes} min read`;
 }
 
+// Helper function to transform story data
+function transformStoryData(story: StoryRow): Story {
+  // Extract the author information from the profiles join
+  const author = {
+    id: story.profiles?.id || story.author_id,
+    name: story.profiles?.name || 'Unknown',
+    username: story.profiles?.username || 'unknown',
+    avatar: story.profiles?.avatar_url || ''
+  };
+
+  // Transform the story data
+  const transformedStory: Story = {
+    id: story.id,
+    title: story.title,
+    author_id: story.author_id,
+    author: author,
+    pages: story.pages || [],
+    tags: story.tags || [],
+    read_time: story.read_time || '3 min',
+    like_count: story.like_count || 0,
+    comment_count: story.comment_count || 0,
+    bookmark_count: story.bookmark_count || 0,
+    created_at: story.created_at,
+    updated_at: story.updated_at
+  };
+
+  return transformedStory;
+}
+
+// Ensure user profile exists
+export async function ensureProfile(userId: string, username?: string, name?: string, avatarUrl?: string) {
+  // Check if profile already exists
+  const { data: existingProfile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (existingProfile) {
+    return existingProfile; // Profile already exists
+  }
+
+  // Create new profile if it doesn't exist
+  const { data: userInfo, error: userError } = await supabase.auth.getUser();
+  
+  if (userError) {
+    console.error('Error getting user:', userError);
+    return null;
+  }
+
+  const user = userInfo?.user;
+  const defaultUsername = username || user?.email?.split('@')[0] || `user_${userId.substring(0, 8)}`;
+  const defaultName = name || defaultUsername;
+  const defaultAvatarUrl = avatarUrl || '/placeholder.svg';
+
+  const { data: newProfile, error: profileError } = await supabase
+    .from('profiles')
+    .insert({
+      id: userId,
+      username: defaultUsername,
+      name: defaultName,
+      avatar_url: defaultAvatarUrl,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .select('*')
+    .single();
+
+  if (profileError) {
+    console.error('Error creating profile:', profileError);
+    return null;
+  }
+
+  return newProfile;
+}
+
 // Stories
 export async function getStories(limit = 10, offset = 0) {
   const { data, error } = await supabase
@@ -50,27 +149,8 @@ export async function getStories(limit = 10, offset = 0) {
     return []
   }
 
-  // Transform data to match the expected format in the Story interface
-  const stories = data.map(story => ({
-    id: story.id,
-    title: story.title,
-    pages: story.pages || [],
-    tags: story.tags || [],
-    readTime: story.read_time,
-    read_time: story.read_time,
-    like_count: story.like_count || 0,
-    comment_count: story.comment_count || 0,
-    bookmark_count: story.bookmark_count || 0,
-    created_at: story.created_at,
-    updated_at: story.updated_at,
-    author: {
-      id: story.author_id,
-      name: story.profiles?.name || story.profiles?.username || 'Unknown Author',
-      avatar: story.profiles?.avatar_url || '/placeholder.svg'
-    }
-  }))
-
-  return stories || []
+  // Explicitly transform each story to ensure it has the author property
+  return data.map(story => transformStoryData(story as StoryRow));
 }
 
 export async function getStoryById(id: string) {
@@ -88,127 +168,89 @@ export async function getStoryById(id: string) {
     return null
   }
 
-  // Transform data to match the expected format
-  const story = {
-    id: data.id,
-    title: data.title,
-    pages: data.pages,
-    tags: data.tags,
-    read_time: data.read_time,
-    like_count: data.like_count,
-    comment_count: data.comment_count,
-    bookmark_count: data.bookmark_count,
-    created_at: data.created_at,
-    updated_at: data.updated_at,
-    author: {
-      id: data.author_id,
-      name: data.profiles.name || data.profiles.username,
-      avatar: data.profiles.avatar_url
-    }
-  }
-
-  return story
+  // Create a properly typed Story object with a guaranteed author property
+  return transformStoryData(data as StoryRow);
 }
 
 export async function createStory(story: StoryInsert) {
-  try {
-    // Calculate read time
-    const readTime = calculateReadTime(story.pages)
-    
-    // Prepare story data
-    const storyData = {
-      ...story,
-      read_time: readTime,
-      like_count: 0,
-      comment_count: 0,
-      bookmark_count: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
-    
-    // Insert story
-    const { data, error } = await supabase
-      .from('stories')
-      .insert(storyData)
-      .select('*')
-      .single()
-    
-    if (error) {
-      console.error('Error creating story:', error)
-      throw error
-    }
-    
-    // Call the function to increment the user's story count
-    await supabase.rpc('increment_user_stories', { user_id: story.author_id })
-    
-    return data
-  } catch (error) {
-    console.error('Error creating story:', error)
-    throw error
+  // Ensure user profile exists before creating story
+  const profile = await ensureProfile(story.author_id);
+  
+  if (!profile) {
+    console.error('Failed to ensure profile exists');
+    return null;
   }
+
+  const readTime = calculateReadTime(story.pages);
+  const storyData = {
+    ...story,
+    read_time: readTime,
+    like_count: 0,
+    comment_count: 0,
+    bookmark_count: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  
+  const { data, error } = await supabase
+    .from('stories')
+    .insert(storyData)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('Error creating story:', error);
+    return null;
+  }
+
+  // Call the increment_user_stories function to update story count
+  try {
+    await supabase.rpc('increment_user_stories', { user_id: story.author_id });
+  } catch (err) {
+    console.error('Error incrementing user story count:', err);
+    // Continue even if this fails, as the story was created successfully
+  }
+
+  return transformStoryData(data as StoryRow);
 }
 
 export async function likeStory(userId: string, storyId: string) {
-  // Check if already liked
-  const { data: existingLike } = await supabase
-    .from('likes')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('story_id', storyId)
-    .single()
-
-  if (existingLike) {
-    // Unlike
-    const { error: deleteError } = await supabase
-      .from('likes')
-      .delete()
-      .eq('user_id', userId)
-      .eq('story_id', storyId)
-
-    if (deleteError) {
-      console.error('Error unliking story:', deleteError)
-      return false
-    }
-
-    // Update the story's like count
-    const { error: updateError } = await supabase
-      .from('stories')
-      .update({ like_count: supabase.rpc('decrement_likes', { story_id: storyId }) })
-      .eq('id', storyId)
-
-    if (updateError) {
-      console.error('Error updating like count:', updateError)
-    }
-
-    return false // Unliked
-  } else {
-    // Like
-    const { error: insertError } = await supabase
-      .from('likes')
-      .insert({
-        id: uuidv4(),
-        user_id: userId,
-        story_id: storyId,
-        created_at: new Date().toISOString()
-      })
-
-    if (insertError) {
-      console.error('Error liking story:', insertError)
-      return false
-    }
-
-    // Update the story's like count
-    const { error: updateError } = await supabase
-      .from('stories')
-      .update({ like_count: supabase.rpc('increment_likes', { story_id: storyId }) })
-      .eq('id', storyId)
-
-    if (updateError) {
-      console.error('Error updating like count:', updateError)
-    }
-
-    return true // Liked
+  // Ensure user profile exists
+  const profile = await ensureProfile(userId);
+  
+  if (!profile) {
+    console.error('Failed to ensure profile exists for liking story');
+    return null;
   }
+
+  const { data, error } = await supabase
+    .from('likes')
+    .insert([
+      { id: uuidv4(), user_id: userId, story_id: storyId, created_at: new Date().toISOString() }
+    ])
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('Error liking story:', error);
+    return null;
+  }
+
+  return data;
+}
+
+export async function unlikeStory(userId: string, storyId: string) {
+  const { error } = await supabase
+    .from('likes')
+    .delete()
+    .match({ user_id: userId, story_id: storyId });
+
+  if (error) {
+    console.error('Error unliking story:', error);
+    return false;
+  }
+
+  return true;
 }
 
 export async function isStoryLiked(userId: string, storyId: string) {
@@ -226,68 +268,43 @@ export async function isStoryLiked(userId: string, storyId: string) {
   return !!data
 }
 
-// Bookmarks
 export async function bookmarkStory(userId: string, storyId: string) {
-  // Check if already bookmarked
-  const { data: existingBookmark } = await supabase
-    .from('bookmarks')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('story_id', storyId)
-    .single()
-
-  if (existingBookmark) {
-    // Remove bookmark
-    const { error: deleteError } = await supabase
-      .from('bookmarks')
-      .delete()
-      .eq('user_id', userId)
-      .eq('story_id', storyId)
-
-    if (deleteError) {
-      console.error('Error removing bookmark:', deleteError)
-      return false
-    }
-
-    // Update the story's bookmark count
-    const { error: updateError } = await supabase
-      .from('stories')
-      .update({ bookmark_count: supabase.rpc('decrement_bookmarks', { story_id: storyId }) })
-      .eq('id', storyId)
-
-    if (updateError) {
-      console.error('Error updating bookmark count:', updateError)
-    }
-
-    return false // Unbookmarked
-  } else {
-    // Add bookmark
-    const { error: insertError } = await supabase
-      .from('bookmarks')
-      .insert({
-        id: uuidv4(),
-        user_id: userId,
-        story_id: storyId,
-        created_at: new Date().toISOString()
-      })
-
-    if (insertError) {
-      console.error('Error bookmarking story:', insertError)
-      return false
-    }
-
-    // Update the story's bookmark count
-    const { error: updateError } = await supabase
-      .from('stories')
-      .update({ bookmark_count: supabase.rpc('increment_bookmarks', { story_id: storyId }) })
-      .eq('id', storyId)
-
-    if (updateError) {
-      console.error('Error updating bookmark count:', updateError)
-    }
-
-    return true // Bookmarked
+  // Ensure user profile exists
+  const profile = await ensureProfile(userId);
+  
+  if (!profile) {
+    console.error('Failed to ensure profile exists for bookmarking story');
+    return null;
   }
+
+  const { data, error } = await supabase
+    .from('bookmarks')
+    .insert([
+      { id: uuidv4(), user_id: userId, story_id: storyId, created_at: new Date().toISOString() }
+    ])
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('Error bookmarking story:', error);
+    return null;
+  }
+
+  return data;
+}
+
+export async function unbookmarkStory(userId: string, storyId: string) {
+  const { error } = await supabase
+    .from('bookmarks')
+    .delete()
+    .match({ user_id: userId, story_id: storyId });
+
+  if (error) {
+    console.error('Error unbookmarking story:', error);
+    return false;
+  }
+
+  return true;
 }
 
 export async function isStoryBookmarked(userId: string, storyId: string) {
@@ -323,8 +340,7 @@ export async function getBookmarkedStories(userId: string) {
     return []
   }
 
-  // Transform data to match the expected format
-  const stories = data.map(bookmark => ({
+  return data.map((bookmark: any) => ({
     id: bookmark.stories.id,
     title: bookmark.stories.title,
     pages: bookmark.stories.pages,
@@ -341,8 +357,86 @@ export async function getBookmarkedStories(userId: string) {
       avatar: bookmark.stories.profiles.avatar_url
     }
   }))
+}
 
-  return stories || []
+export async function getUserBookmarkedStories(userId: string) {
+  const { data, error } = await supabase
+    .from('bookmarks')
+    .select(`
+      *,
+      stories:stories(
+        *,
+        profiles:profiles(id, username, name, avatar_url)
+      )
+    `)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching bookmarked stories:', error)
+    return []
+  }
+
+  // Explicitly transform each story to ensure it has the author property
+  return data.map((bookmark: any) => transformStoryData(bookmark.stories as StoryRow));
+}
+
+export async function getUserBookmarks(userId: string) {
+  const { data, error } = await supabase
+    .from('bookmarks')
+    .select('story_id')
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('Error fetching user bookmarks:', error);
+    return [];
+  }
+
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  // Get the story IDs from the bookmarks
+  const storyIds = data.map(bookmark => bookmark.story_id);
+
+  // Fetch the stories
+  const { data: stories, error: storiesError } = await supabase
+    .from('stories')
+    .select('*, profiles(*)')
+    .in('id', storyIds)
+    .order('created_at', { ascending: false });
+
+  if (storiesError) {
+    console.error('Error fetching bookmarked stories:', storiesError);
+    return [];
+  }
+
+  if (!stories || stories.length === 0) {
+    return [];
+  }
+
+  // Transform the stories
+  return stories.map(story => transformStoryData(story as StoryRow));
+}
+
+export async function getUserStories(userId: string) {
+  const { data, error } = await supabase
+    .from('stories')
+    .select('*, profiles(*)')
+    .eq('author_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching user stories:', error);
+    return [];
+  }
+
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  // Explicitly transform each story to ensure it has the author property
+  return data.map(story => transformStoryData(story as StoryRow));
 }
 
 // Comments
@@ -376,119 +470,75 @@ export async function getComments(storyId: string) {
   return comments || []
 }
 
-export async function addComment(storyId: string, userId: string, content: string) {
-  const comment = {
-    id: uuidv4(),
-    user_id: userId,
-    story_id: storyId,
-    content: content,
-    created_at: new Date().toISOString(),
-    likes_count: 0
+export async function createComment(userId: string, storyId: string, content: string) {
+  // Ensure user profile exists
+  const profile = await ensureProfile(userId);
+  
+  if (!profile) {
+    console.error('Failed to ensure profile exists for creating comment');
+    return null;
   }
 
   const { data, error } = await supabase
     .from('comments')
-    .insert(comment)
-    .select()
+    .insert([
+      { 
+        id: uuidv4(), 
+        author_id: userId, 
+        story_id: storyId, 
+        content, 
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+    ])
+    .select('*, profiles(*)')
+    .single();
 
   if (error) {
-    console.error('Error adding comment:', error)
-    return null
+    console.error('Error creating comment:', error);
+    return null;
   }
 
-  // Update the story's comment count
-  const { error: updateError } = await supabase
-    .from('stories')
-    .update({ comment_count: supabase.rpc('increment_comments', { story_id: storyId }) })
-    .eq('id', storyId)
-
-  if (updateError) {
-    console.error('Error updating comment count:', updateError)
-  }
-
-  // Get the user profile for the comment
-  const { data: profileData } = await supabase
-    .from('profiles')
-    .select('username, name, avatar_url')
-    .eq('user_id', userId)
-    .single()
-
-  // Format the comment for the UI
-  const formattedComment = {
-    id: data[0].id,
-    author: {
-      name: profileData?.name || profileData?.username || 'Anonymous',
-      avatar: profileData?.avatar_url || 'https://randomuser.me/api/portraits/lego/1.jpg'
-    },
-    text: data[0].content,
-    time: 'Just now',
-    likes: 0
-  }
-
-  return formattedComment
+  return transformComment(data);
 }
 
 export async function likeComment(userId: string, commentId: string) {
-  // Check if already liked
-  const { data: existingLike } = await supabase
-    .from('comment_likes')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('comment_id', commentId)
-    .single()
-
-  if (existingLike) {
-    // Unlike
-    const { error: deleteError } = await supabase
-      .from('comment_likes')
-      .delete()
-      .eq('user_id', userId)
-      .eq('comment_id', commentId)
-
-    if (deleteError) {
-      console.error('Error unliking comment:', deleteError)
-      return false
-    }
-
-    // Update the comment's like count
-    const { error: updateError } = await supabase
-      .from('comments')
-      .update({ likes_count: supabase.rpc('decrement_comment_likes', { comment_id: commentId }) })
-      .eq('id', commentId)
-
-    if (updateError) {
-      console.error('Error updating comment like count:', updateError)
-    }
-
-    return false // Unliked
-  } else {
-    // Like
-    const { error: insertError } = await supabase
-      .from('comment_likes')
-      .insert({
-        id: uuidv4(),
-        user_id: userId,
-        comment_id: commentId,
-        created_at: new Date().toISOString()
-      })
-
-    if (insertError) {
-      console.error('Error liking comment:', insertError)
-      return false
-    }
-
-    // Update the comment's like count
-    const { error: updateError } = await supabase
-      .from('comments')
-      .update({ likes_count: supabase.rpc('increment_comment_likes', { comment_id: commentId }) })
-      .eq('id', commentId)
-
-    if (updateError) {
-      console.error('Error updating comment like count:', updateError)
-    }
-
-    return true // Liked
+  // Ensure user profile exists
+  const profile = await ensureProfile(userId);
+  
+  if (!profile) {
+    console.error('Failed to ensure profile exists for liking comment');
+    return null;
   }
+
+  const { data, error } = await supabase
+    .from('comment_likes')
+    .insert([
+      { id: uuidv4(), user_id: userId, comment_id: commentId, created_at: new Date().toISOString() }
+    ])
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('Error liking comment:', error);
+    return null;
+  }
+
+  return data;
+}
+
+export async function unlikeComment(userId: string, commentId: string) {
+  const { error } = await supabase
+    .from('comment_likes')
+    .delete()
+    .match({ user_id: userId, comment_id: commentId });
+
+  if (error) {
+    console.error('Error unliking comment:', error);
+    return false;
+  }
+
+  return true;
 }
 
 export async function isCommentLiked(userId: string, commentId: string) {
@@ -506,199 +556,111 @@ export async function isCommentLiked(userId: string, commentId: string) {
   return !!data
 }
 
-// Follows
+// User profiles
+export async function getUserProfile(userId: string) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching user profile:', error);
+    return null;
+  }
+
+  return data;
+}
+
+// Follow functionality
 export async function followUser(followerId: string, followingId: string) {
-  // Don't allow following yourself
-  if (followerId === followingId) {
-    return false
-  }
-  
-  // Check if already following
-  const { data: existingFollow } = await supabase
+  // Ensure both user profiles exist
+  await ensureProfile(followerId);
+  await ensureProfile(followingId);
+
+  const { data, error } = await supabase
     .from('follows')
+    .insert([
+      { 
+        id: uuidv4(), 
+        follower_id: followerId, 
+        following_id: followingId, 
+        created_at: new Date().toISOString() 
+      }
+    ])
     .select('*')
-    .eq('follower_id', followerId)
-    .eq('following_id', followingId)
-    .single()
+    .single();
 
-  if (existingFollow) {
-    // Unfollow
-    const { error: deleteError } = await supabase
-      .from('follows')
-      .delete()
-      .eq('follower_id', followerId)
-      .eq('following_id', followingId)
-
-    if (deleteError) {
-      console.error('Error unfollowing user:', deleteError)
-      return false
-    }
-
-    // Update follower counts
-    await supabase
-      .from('profiles')
-      .update({ following_count: supabase.rpc('decrement_following', { user_id: followerId }) })
-      .eq('user_id', followerId)
-
-    await supabase
-      .from('profiles')
-      .update({ followers_count: supabase.rpc('decrement_followers', { user_id: followingId }) })
-      .eq('user_id', followingId)
-
-    return false // Unfollowed
-  } else {
-    // Follow
-    const { error: insertError } = await supabase
-      .from('follows')
-      .insert({
-        id: uuidv4(),
-        follower_id: followerId,
-        following_id: followingId,
-        created_at: new Date().toISOString()
-      })
-
-    if (insertError) {
-      console.error('Error following user:', insertError)
-      return false
-    }
-
-    // Update follower counts
-    await supabase
-      .from('profiles')
-      .update({ following_count: supabase.rpc('increment_following', { user_id: followerId }) })
-      .eq('user_id', followerId)
-
-    await supabase
-      .from('profiles')
-      .update({ followers_count: supabase.rpc('increment_followers', { user_id: followingId }) })
-      .eq('user_id', followingId)
-
-    return true // Followed
+  if (error) {
+    console.error('Error following user:', error);
+    return null;
   }
+
+  return data;
 }
 
-export async function isFollowing(followerId: string, followingId: string) {
+export async function unfollowUser(followerId: string, followingId: string) {
+  const { error } = await supabase
+    .from('follows')
+    .delete()
+    .match({ follower_id: followerId, following_id: followingId });
+
+  if (error) {
+    console.error('Error unfollowing user:', error);
+    return false;
+  }
+
+  return true;
+}
+
+export async function isFollowingUser(followerId: string, followingId: string) {
   const { data, error } = await supabase
     .from('follows')
     .select('*')
     .eq('follower_id', followerId)
     .eq('following_id', followingId)
-    .single()
+    .single();
 
-  if (error) {
-    return false
+  if (error && error.code !== 'PGRST116') {
+    console.error('Error checking follow status:', error);
+    return false;
   }
 
-  return !!data
+  return !!data;
 }
 
-// Profiles
-export async function getProfile(userId: string) {
+// Check if a user has liked a story
+export async function hasUserLikedStory(userId: string, storyId: string) {
   const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
+    .from('likes')
+    .select('id')
     .eq('user_id', userId)
-    .single()
+    .eq('story_id', storyId)
+    .single();
 
-  if (error) {
-    console.error('Error fetching profile:', error)
-    return null
+  if (error && error.code !== 'PGRST116') {
+    console.error('Error checking if user liked story:', error);
+    return false;
   }
 
-  return data
+  return !!data;
 }
 
-export async function createOrUpdateProfile(userId: string, profile: Partial<Profile>) {
-  // Check if profile exists
-  const { data: existingProfile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('user_id', userId)
-    .single()
-
-  if (existingProfile) {
-    // Update existing profile
-    const { data, error } = await supabase
-      .from('profiles')
-      .update({
-        ...profile,
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', userId)
-      .select()
-
-    if (error) {
-      console.error('Error updating profile:', error)
-      return null
-    }
-
-    return data[0]
-  } else {
-    // Create new profile
-    const now = new Date().toISOString()
-    const newProfile = {
-      id: uuidv4(),
-      user_id: userId,
-      username: profile.username || generateUsername(),
-      name: profile.name || '',
-      avatar_url: profile.avatar_url || 'https://randomuser.me/api/portraits/lego/1.jpg',
-      bio: profile.bio || '',
-      created_at: now,
-      updated_at: now,
-      followers_count: 0,
-      following_count: 0,
-      stories_count: 0
-    }
-
-    const { data, error } = await supabase
-      .from('profiles')
-      .insert(newProfile)
-      .select()
-
-    if (error) {
-      console.error('Error creating profile:', error)
-      return null
-    }
-
-    return data[0]
-  }
-}
-
-export async function getUserStories(userId: string) {
+// Check if a user has bookmarked a story
+export async function hasUserBookmarkedStory(userId: string, storyId: string) {
   const { data, error } = await supabase
-    .from('stories')
-    .select(`
-      *,
-      profiles:profiles(id, username, name, avatar_url)
-    `)
-    .eq('author_id', userId)
-    .order('created_at', { ascending: false })
+    .from('bookmarks')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('story_id', storyId)
+    .single();
 
-  if (error) {
-    console.error('Error fetching user stories:', error)
-    return []
+  if (error && error.code !== 'PGRST116') {
+    console.error('Error checking if user bookmarked story:', error);
+    return false;
   }
 
-  // Transform data to match the expected format
-  const stories = data.map(story => ({
-    id: story.id,
-    title: story.title,
-    pages: story.pages,
-    tags: story.tags,
-    read_time: story.read_time,
-    like_count: story.like_count,
-    comment_count: story.comment_count,
-    bookmark_count: story.bookmark_count,
-    created_at: story.created_at,
-    updated_at: story.updated_at,
-    author: {
-      id: story.author_id,
-      name: story.profiles.name || story.profiles.username,
-      avatar: story.profiles.avatar_url
-    }
-  }))
-
-  return stories || []
+  return !!data;
 }
 
 // Helper functions
@@ -743,4 +705,17 @@ function generateUsername(): string {
   const randomNumber = Math.floor(Math.random() * 1000)
   
   return `${randomAdjective}${randomNoun}${randomNumber}`
+}
+
+function transformComment(comment: any): any {
+  return {
+    id: comment.id,
+    author: {
+      name: comment.profiles.name || comment.profiles.username,
+      avatar: comment.profiles.avatar_url
+    },
+    text: comment.content,
+    time: formatTimeAgo(new Date(comment.created_at)),
+    likes: comment.likes_count
+  }
 }

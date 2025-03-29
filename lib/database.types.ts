@@ -10,7 +10,21 @@ export interface StoryPage {
   type: "text" | "image"
   content: string[]
   image?: string
-  imageAlt?: string
+  image_alt?: string
+}
+
+export interface StoryInsert {
+  id?: string
+  title: string
+  author_id: string
+  pages: StoryPage[]
+  tags?: string[]
+  read_time?: string
+  like_count?: number
+  comment_count?: number
+  bookmark_count?: number
+  created_at?: string
+  updated_at?: string
 }
 
 export interface Database {

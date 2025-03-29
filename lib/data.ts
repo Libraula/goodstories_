@@ -39,7 +39,7 @@ export const stories: Story[] = [
     readTime: "5 min read",
     likeCount: 2400,
     commentCount: 512,
-    bookmarkCount: 256,
+    bookmark_count: 256,
     created_at: "2025-03-20T12:00:00Z",
     updated_at: "2025-03-20T12:00:00Z"
   },
@@ -91,7 +91,7 @@ export const stories: Story[] = [
     readTime: "4 min read",
     likeCount: 4100,
     commentCount: 893,
-    bookmarkCount: 456,
+    bookmark_count: 456,
     created_at: "2025-03-15T15:30:00Z",
     updated_at: "2025-03-15T15:30:00Z"
   },
@@ -133,7 +133,7 @@ export const stories: Story[] = [
     readTime: "6 min read",
     likeCount: 1200,
     commentCount: 345,
-    bookmarkCount: 256,
+    bookmark_count: 256,
     created_at: "2025-03-20T12:00:00Z",
     updated_at: "2025-03-20T12:00:00Z"
   },
@@ -175,7 +175,7 @@ export const stories: Story[] = [
     readTime: "7 min read",
     likeCount: 1800,
     commentCount: 412,
-    bookmarkCount: 256,
+    bookmark_count: 256,
     created_at: "2025-03-20T12:00:00Z",
     updated_at: "2025-03-20T12:00:00Z"
   },
@@ -217,7 +217,7 @@ export const stories: Story[] = [
     readTime: "8 min read",
     likeCount: 2100,
     commentCount: 567,
-    bookmarkCount: 256,
+    bookmark_count: 256,
     created_at: "2025-03-20T12:00:00Z",
     updated_at: "2025-03-20T12:00:00Z"
   },
@@ -259,7 +259,7 @@ export const stories: Story[] = [
     readTime: "9 min read",
     likeCount: 2500,
     commentCount: 678,
-    bookmarkCount: 256,
+    bookmark_count: 256,
     created_at: "2025-03-20T12:00:00Z",
     updated_at: "2025-03-20T12:00:00Z"
   },
@@ -301,7 +301,7 @@ export const stories: Story[] = [
     readTime: "10 min read",
     likeCount: 2800,
     commentCount: 789,
-    bookmarkCount: 256,
+    bookmark_count: 256,
     created_at: "2025-03-20T12:00:00Z",
     updated_at: "2025-03-20T12:00:00Z"
   },
@@ -343,7 +343,7 @@ export const stories: Story[] = [
     readTime: "11 min read",
     likeCount: 3100,
     commentCount: 890,
-    bookmarkCount: 256,
+    bookmark_count: 256,
     created_at: "2025-03-20T12:00:00Z",
     updated_at: "2025-03-20T12:00:00Z"
   },
@@ -385,7 +385,7 @@ export const stories: Story[] = [
     readTime: "12 min read",
     likeCount: 3400,
     commentCount: 901,
-    bookmarkCount: 256,
+    bookmark_count: 256,
     created_at: "2025-03-20T12:00:00Z",
     updated_at: "2025-03-20T12:00:00Z"
   },

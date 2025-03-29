@@ -9,10 +9,9 @@ import CommentsSection from "./comments-section"
 import { useReadingSettings } from "@/contexts/reading-settings-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useAuthModal } from "@/hooks/use-auth-modal"
-import { createClient } from "@supabase/supabase-js"
 import { v4 as uuidv4 } from 'uuid';
+import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://jvklkxhejlqmiwatkhld.supabase.co'
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 const supabase = createClient(supabaseUrl, supabaseKey)
@@ -32,6 +31,7 @@ export default function StoryContainer({
   const [isLiked, setIsLiked] = useState(false)
   const [isBookmarked, setIsBookmarked] = useState(false)
   const [likeCount, setLikeCount] = useState(story?.like_count ?? 0)
+  const [bookmarkCount, setBookmarkCount] = useState(story?.bookmark_count ?? 0)
   const [showComments, setShowComments] = useState(false)
   const [showActionIcons, setShowActionIcons] = useState(false)
   const pagesContainerRef = useRef<HTMLDivElement>(null)
@@ -112,6 +112,7 @@ export default function StoryContainer({
   useEffect(() => {
     if (story) {
       setLikeCount(story.like_count ?? 0)
+      setBookmarkCount(story.bookmark_count ?? 0)
     }
   }, [story])
 
@@ -209,16 +210,17 @@ export default function StoryContainer({
 
     try {
       if (newIsLiked) {
-        const { error } = await supabase
-          .from('likes')
-          .insert([{ id: uuidv4(), user_id: user.id, story_id: story.id, created_at: new Date().toISOString() }])
-        if (error) throw error
+        await fetch('/api/likes', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ storyId: story.id }),
+        })
       } else {
-        const { error } = await supabase
-          .from('likes')
-          .delete()
-          .match({ user_id: user.id, story_id: story.id })
-        if (error) throw error
+        await fetch(`/api/likes?storyId=${story.id}`, {
+          method: 'DELETE',
+        })
       }
     } catch (error) {
       console.error('Error toggling like:', error)
@@ -235,23 +237,26 @@ export default function StoryContainer({
 
     const newIsBookmarked = !isBookmarked
     setIsBookmarked(newIsBookmarked)
+    setBookmarkCount((prevCount: number) => newIsBookmarked ? prevCount + 1 : prevCount - 1)
 
     try {
       if (newIsBookmarked) {
-        const { error } = await supabase
-          .from('bookmarks')
-          .insert([{ id: uuidv4(), user_id: user.id, story_id: story.id, created_at: new Date().toISOString() }])
-        if (error) throw error
+        await fetch('/api/bookmarks', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ storyId: story.id }),
+        })
       } else {
-        const { error } = await supabase
-          .from('bookmarks')
-          .delete()
-          .match({ user_id: user.id, story_id: story.id })
-        if (error) throw error
+        await fetch(`/api/bookmarks?storyId=${story.id}`, {
+          method: 'DELETE',
+        })
       }
     } catch (error) {
       console.error('Error toggling bookmark:', error)
       setIsBookmarked(!newIsBookmarked)
+      setBookmarkCount((prevCount: number) => !newIsBookmarked ? prevCount + 1 : prevCount - 1)
     }
   }
 
@@ -269,16 +274,19 @@ export default function StoryContainer({
   }
 
   const viewAuthorProfile = () => {
-    console.log("View author profile:", story.author.name)
+    if (!story?.author?.id) return;
+    
+    // Navigate to author profile page
+    window.location.href = `/profile/${story.author.id}`;
   }
 
-  // Format number for display (e.g., 1000 -> 1.0K)
+  // Format count for display (e.g., 1000 -> 1K)
   const formatCount = (count: number | undefined | null): string => {
     // Ensure count is a valid number
     const safeCount = typeof count === 'number' ? count : 0;
     
     if (safeCount >= 1000) {
-      return (safeCount / 1000).toFixed(1) + "K";
+      return `${(safeCount / 1000).toFixed(1)}K`;
     }
     return safeCount.toString();
   };
@@ -417,11 +425,15 @@ export default function StoryContainer({
 
                   {page.type === "text" ? (
                     <div
-                      className="story-text leading-relaxed mb-4 text-justify text-ink dark:text-ink"
-                      style={{ fontSize: "var(--story-font-size)" }}
+                      className="story-text leading-relaxed mb-4 text-ink dark:text-ink"
+                      style={{ 
+                        fontSize: "var(--story-font-size)",
+                        maxHeight: readingMode === "page" ? `${containerHeight - 120}px` : "auto",
+                        overflowY: "auto"
+                      }}
                     >
                       {page.content.map((paragraph, pIndex) => (
-                        <p key={pIndex} className="mb-4">
+                        <p key={pIndex} className="mb-3 whitespace-pre-line">
                           {paragraph}
                         </p>
                       ))}
@@ -499,6 +511,9 @@ export default function StoryContainer({
           }`}
         >
           <Bookmark className={`h-5 w-5 ${isBookmarked ? "fill-current" : ""}`} />
+          <span className="absolute -right-1 -top-1 bg-highlight text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+            {formatCount(bookmarkCount)}
+          </span>
         </button>
         
         <button

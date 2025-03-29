@@ -49,7 +49,8 @@ export default function StoryFeed() {
       try {
         const fetchedStories = await getStories(20, 0)
         if (fetchedStories && fetchedStories.length > 0) {
-          setStories(fetchedStories)
+          // Explicitly cast the fetched stories to ensure TypeScript recognizes them as Story[]
+          setStories(fetchedStories as Story[])
         }
       } catch (error) {
         console.error("Error fetching stories:", error)
