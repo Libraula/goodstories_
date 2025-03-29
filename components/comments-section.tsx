@@ -6,6 +6,7 @@ import { Send, X, Heart, MessageCircle, Trash2, Edit, Check } from "lucide-react
 import { useAuth } from "@/contexts/auth-context"
 import { useAuthModal } from "@/hooks/use-auth-modal"
 import { formatTimeAgo } from "@/lib/utils"
+import { handleAuthAction } from "@/lib/supabase"
 
 // Comment type definition
 type Comment = {
@@ -65,7 +66,9 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
   const fetchComments = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch(`/api/comments?storyId=${storyId}`)
+      const response = await fetch(`/api/comments?storyId=${storyId}`, {
+        credentials: 'include', // Include cookies for authentication
+      });
       if (!response.ok) throw new Error('Failed to fetch comments')
       const { data } = await response.json()
       setComments(data || [])
@@ -106,48 +109,52 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
 
   // Handle comment submission
   const handleCommentSubmit = async () => {
-    if (!user) {
-      openModal()
-      return
-    }
-
-    if (!newComment.trim()) return
-
-    setIsSubmitting(true)
+    if (!newComment.trim()) return;
 
     try {
-      const response = await fetch('/api/comments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          storyId,
-          content: newComment.trim(),
-        }),
-      })
+      await handleAuthAction(async () => {
+        setIsSubmitting(true);
 
-      if (!response.ok) throw new Error('Failed to post comment')
-      
-      const { data } = await response.json()
-      setComments([data, ...comments])
-      setNewComment("")
+        try {
+          const response = await fetch('/api/comments', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              storyId,
+              content: newComment.trim(),
+            }),
+            credentials: 'include', // Include cookies for authentication
+          });
 
-      // Reset textarea height
-      if (commentInputRef.current) {
-        commentInputRef.current.style.height = "80px"
-      }
+          if (!response.ok) {
+            throw new Error('Failed to post comment');
+          }
+          
+          const { data } = await response.json();
+          setComments([data, ...comments]);
+          setNewComment("");
 
-      // Scroll to top to show the new comment
-      if (commentsContainerRef.current) {
-        commentsContainerRef.current.scrollTop = 0
-      }
+          // Reset textarea height
+          if (commentInputRef.current) {
+            commentInputRef.current.style.height = "80px";
+          }
+
+          // Scroll to top to show the new comment
+          if (commentsContainerRef.current) {
+            commentsContainerRef.current.scrollTop = 0;
+          }
+        } catch (error) {
+          console.error('Error posting comment:', error);
+        } finally {
+          setIsSubmitting(false);
+        }
+      }, openModal);
     } catch (error) {
-      console.error('Error posting comment:', error)
-    } finally {
-      setIsSubmitting(false)
+      console.error('Error in comment submission:', error);
     }
-  }
+  };
 
   // Start editing a comment
   const startEditComment = (comment: Comment) => {
@@ -163,54 +170,74 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
 
   // Save edited comment
   const saveEditedComment = async () => {
-    if (!editingCommentId || !editContent.trim()) return
+    if (!editingCommentId || !editContent.trim()) return;
 
     try {
-      const response = await fetch('/api/comments', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          commentId: editingCommentId,
-          content: editContent.trim(),
-        }),
-      })
+      await handleAuthAction(async () => {
+        try {
+          const response = await fetch('/api/comments', {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              commentId: editingCommentId,
+              content: editContent.trim(),
+            }),
+            credentials: 'include', // Include cookies for authentication
+          });
 
-      if (!response.ok) throw new Error('Failed to update comment')
-      
-      const { data } = await response.json()
-      
-      // Update the comment in the local state
-      setComments(comments.map(comment => 
-        comment.id === editingCommentId ? data : comment
-      ))
-      
-      // Reset editing state
-      setEditingCommentId(null)
-      setEditContent("")
+          if (!response.ok) {
+            throw new Error('Failed to update comment');
+          }
+          
+          const { data } = await response.json();
+          
+          // Update the comment in the local state
+          setComments(comments.map(comment => 
+            comment.id === editingCommentId 
+              ? { ...comment, content: data.content, updated_at: data.updated_at } 
+              : comment
+          ));
+          
+          // Exit edit mode
+          setEditingCommentId(null);
+          setEditContent("");
+        } catch (error) {
+          console.error('Error updating comment:', error);
+        }
+      }, openModal);
     } catch (error) {
-      console.error('Error updating comment:', error)
+      console.error('Error in edit comment action:', error);
     }
-  }
+  };
 
   // Delete a comment
   const deleteComment = async (commentId: string) => {
-    if (!window.confirm('Are you sure you want to delete this comment?')) return
+    if (!window.confirm('Are you sure you want to delete this comment?')) return;
 
     try {
-      const response = await fetch(`/api/comments?commentId=${commentId}&storyId=${storyId}`, {
-        method: 'DELETE',
-      })
+      await handleAuthAction(async () => {
+        try {
+          const response = await fetch(`/api/comments?commentId=${commentId}`, {
+            method: 'DELETE',
+            credentials: 'include', // Include cookies for authentication
+          });
 
-      if (!response.ok) throw new Error('Failed to delete comment')
-      
-      // Remove the comment from the local state
-      setComments(comments.filter(comment => comment.id !== commentId))
+          if (!response.ok) {
+            throw new Error('Failed to delete comment');
+          }
+          
+          // Remove the comment from the local state
+          setComments(comments.filter(comment => comment.id !== commentId));
+        } catch (error) {
+          console.error('Error deleting comment:', error);
+        }
+      }, openModal);
     } catch (error) {
-      console.error('Error deleting comment:', error)
+      console.error('Error in delete comment action:', error);
     }
-  }
+  };
 
   // Handle keyboard shortcuts for comment submission
   const handleKeyDown = (e: React.KeyboardEvent) => {

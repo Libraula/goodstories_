@@ -60,11 +60,12 @@ export function calculateReadTime(pages: StoryPage[]): string {
 // Helper function to transform story data
 function transformStoryData(story: StoryRow): Story {
   // Extract the author information from the profiles join
+  // Handle case where profiles might be null or undefined
   const author = {
     id: story.profiles?.id || story.author_id,
-    name: story.profiles?.name || 'Unknown',
-    username: story.profiles?.username || 'unknown',
-    avatar: story.profiles?.avatar_url || ''
+    name: story.profiles?.name || 'Anonymous',
+    username: story.profiles?.username || 'anonymous',
+    avatar: story.profiles?.avatar_url || '/placeholder.svg'
   };
 
   // Transform the story data
@@ -88,130 +89,152 @@ function transformStoryData(story: StoryRow): Story {
 
 // Ensure user profile exists
 export async function ensureProfile(userId: string, username?: string, name?: string, avatarUrl?: string) {
-  // Check if profile already exists
-  const { data: existingProfile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
+  try {
+    // Check if profile already exists
+    const { data: existingProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
 
-  if (existingProfile) {
-    return existingProfile; // Profile already exists
-  }
+    if (profileError && profileError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+      console.error('Error checking profile:', profileError);
+    }
 
-  // Create new profile if it doesn't exist
-  const { data: userInfo, error: userError } = await supabase.auth.getUser();
-  
-  if (userError) {
-    console.error('Error getting user:', userError);
+    if (existingProfile) {
+      return existingProfile; // Profile already exists
+    }
+
+    // Try to get user info, but don't fail if auth is missing
+    let user = null;
+    try {
+      const { data: userInfo, error: userError } = await supabase.auth.getUser();
+      if (!userError) {
+        user = userInfo?.user;
+      }
+    } catch (authError) {
+      console.warn('Auth session missing when ensuring profile, continuing with defaults');
+    }
+
+    const defaultUsername = username || user?.email?.split('@')[0] || `user_${userId.substring(0, 8)}`;
+    const defaultName = name || defaultUsername;
+    const defaultAvatarUrl = avatarUrl || '/placeholder.svg';
+
+    const { data: newProfile, error: insertError } = await supabase
+      .from('profiles')
+      .insert({
+        id: userId,
+        username: defaultUsername,
+        name: defaultName,
+        avatar_url: defaultAvatarUrl,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select('*')
+      .single();
+
+    if (insertError) {
+      console.error('Error creating profile:', insertError);
+      return null;
+    }
+
+    return newProfile;
+  } catch (err) {
+    console.error('Exception ensuring profile exists:', err);
     return null;
   }
-
-  const user = userInfo?.user;
-  const defaultUsername = username || user?.email?.split('@')[0] || `user_${userId.substring(0, 8)}`;
-  const defaultName = name || defaultUsername;
-  const defaultAvatarUrl = avatarUrl || '/placeholder.svg';
-
-  const { data: newProfile, error: profileError } = await supabase
-    .from('profiles')
-    .insert({
-      id: userId,
-      username: defaultUsername,
-      name: defaultName,
-      avatar_url: defaultAvatarUrl,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
-    .select('*')
-    .single();
-
-  if (profileError) {
-    console.error('Error creating profile:', profileError);
-    return null;
-  }
-
-  return newProfile;
 }
 
 // Stories
 export async function getStories(limit = 10, offset = 0) {
-  const { data, error } = await supabase
-    .from('stories')
-    .select(`
-      *,
-      profiles:profiles(id, username, name, avatar_url)
-    `)
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1)
+  try {
+    const { data, error } = await supabase
+      .from('stories')
+      .select(`
+        *,
+        profiles:profiles(id, username, name, avatar_url)
+      `)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
 
-  if (error) {
-    console.error('Error fetching stories:', error)
+    if (error) {
+      console.error('Error fetching stories:', error)
+      return []
+    }
+
+    // Explicitly transform each story to ensure it has the author property
+    return data.map(story => transformStoryData(story as StoryRow));
+  } catch (err) {
+    console.error('Exception fetching stories:', err)
     return []
   }
-
-  // Explicitly transform each story to ensure it has the author property
-  return data.map(story => transformStoryData(story as StoryRow));
 }
 
 export async function getStoryById(id: string) {
-  const { data, error } = await supabase
-    .from('stories')
-    .select(`
-      *,
-      profiles:profiles(id, username, name, avatar_url)
-    `)
-    .eq('id', id)
-    .single()
+  try {
+    const { data, error } = await supabase
+      .from('stories')
+      .select(`
+        *,
+        profiles:profiles(id, username, name, avatar_url)
+      `)
+      .eq('id', id)
+      .single()
 
-  if (error) {
-    console.error('Error fetching story:', error)
+    if (error) {
+      console.error('Error fetching story:', error)
+      return null
+    }
+
+    return transformStoryData(data as StoryRow)
+  } catch (err) {
+    console.error('Exception fetching story:', err)
     return null
   }
-
-  // Create a properly typed Story object with a guaranteed author property
-  return transformStoryData(data as StoryRow);
 }
 
 export async function createStory(story: StoryInsert) {
-  // Ensure user profile exists before creating story
-  const profile = await ensureProfile(story.author_id);
-  
-  if (!profile) {
-    console.error('Failed to ensure profile exists');
-    return null;
-  }
-
-  const readTime = calculateReadTime(story.pages);
-  const storyData = {
-    ...story,
-    read_time: readTime,
-    like_count: 0,
-    comment_count: 0,
-    bookmark_count: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
-  
-  const { data, error } = await supabase
-    .from('stories')
-    .insert(storyData)
-    .select('*')
-    .single();
-
-  if (error) {
-    console.error('Error creating story:', error);
-    return null;
-  }
-
-  // Call the increment_user_stories function to update story count
   try {
-    await supabase.rpc('increment_user_stories', { user_id: story.author_id });
-  } catch (err) {
-    console.error('Error incrementing user story count:', err);
-    // Continue even if this fails, as the story was created successfully
-  }
+    // If author_id is provided, ensure profile exists and get profile data
+    let profileData = null;
+    if (story.author_id) {
+      // Get or create user profile
+      profileData = await ensureProfile(story.author_id);
+      
+      if (!profileData) {
+        console.warn('Creating story without verified profile');
+      }
+    }
 
-  return transformStoryData(data as StoryRow);
+    const readTime = calculateReadTime(story.pages);
+    const storyData = {
+      ...story,
+      // For anonymous users, we'll use a placeholder author_id if none provided
+      author_id: story.author_id || 'anonymous',
+      read_time: readTime,
+      like_count: 0,
+      comment_count: 0,
+      bookmark_count: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
+    const { data, error } = await supabase
+      .from('stories')
+      .insert(storyData)
+      .select('*, profiles(*)')
+      .single();
+
+    if (error) {
+      console.error('Error creating story:', error);
+      return null;
+    }
+
+    return transformStoryData(data);
+  } catch (err) {
+    console.error('Exception creating story:', err);
+    return null;
+  }
 }
 
 export async function likeStory(userId: string, storyId: string) {
@@ -420,23 +443,31 @@ export async function getUserBookmarks(userId: string) {
 }
 
 export async function getUserStories(userId: string) {
-  const { data, error } = await supabase
-    .from('stories')
-    .select('*, profiles(*)')
-    .eq('author_id', userId)
-    .order('created_at', { ascending: false });
+  try {
+    const { data, error } = await supabase
+      .from('stories')
+      .select(`
+        *,
+        profiles:profiles(id, username, name, avatar_url)
+      `)
+      .eq('author_id', userId)
+      .order('created_at', { ascending: false });
 
-  if (error) {
-    console.error('Error fetching user stories:', error);
+    if (error) {
+      console.error('Error fetching user stories:', error);
+      return [];
+    }
+
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    // Transform the stories to include author information
+    return data.map(story => transformStoryData(story as StoryRow));
+  } catch (err) {
+    console.error('Exception fetching user stories:', err);
     return [];
   }
-
-  if (!data || data.length === 0) {
-    return [];
-  }
-
-  // Explicitly transform each story to ensure it has the author property
-  return data.map(story => transformStoryData(story as StoryRow));
 }
 
 // Comments

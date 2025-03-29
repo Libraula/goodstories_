@@ -10,11 +10,11 @@ import { useReadingSettings } from "@/contexts/reading-settings-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useAuthModal } from "@/hooks/use-auth-modal"
 import { v4 as uuidv4 } from 'uuid';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/utils/supabase/client';
+import { isUserLoggedIn, handleAuthAction } from '../lib/supabase';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://jvklkxhejlqmiwatkhld.supabase.co'
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-const supabase = createClient(supabaseUrl, supabaseKey)
+// Use the client-side Supabase client
+const supabase = createClient();
 
 export default function StoryContainer({
   story,
@@ -81,32 +81,57 @@ export default function StoryContainer({
   }, [story])
 
   useEffect(() => {
-    if (!story || !user) return
+    if (!story) return;
 
     const checkUserInteractions = async () => {
-      // Check if the user has liked the story
-      const { data: likeData } = await supabase
-        .from('likes')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('story_id', story.id)
-        .single()
+      if (!user) {
+        // If user is not authenticated, set default values
+        setIsLiked(false);
+        setIsBookmarked(false);
+        return;
+      }
 
-      setIsLiked(!!likeData)
+      try {
+        // Check if the user has liked the story - use API route instead of direct Supabase call
+        const likeResponse = await fetch(`/api/likes/check?storyId=${story.id}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
 
-      // Check if the user has bookmarked the story
-      const { data: bookmarkData } = await supabase
-        .from('bookmarks')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('story_id', story.id)
-        .single()
+        if (likeResponse.ok) {
+          const likeData = await likeResponse.json();
+          setIsLiked(likeData.isLiked || false);
+        } else {
+          console.warn('Error checking like status:', await likeResponse.text());
+          setIsLiked(false);
+        }
 
-      setIsBookmarked(!!bookmarkData)
-    }
+        // Check if the user has bookmarked the story - use API route instead of direct Supabase call
+        const bookmarkResponse = await fetch(`/api/bookmarks/check?storyId=${story.id}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
 
-    checkUserInteractions()
-  }, [story, user])
+        if (bookmarkResponse.ok) {
+          const bookmarkData = await bookmarkResponse.json();
+          setIsBookmarked(bookmarkData.isBookmarked || false);
+        } else {
+          console.warn('Error checking bookmark status:', await bookmarkResponse.text());
+          setIsBookmarked(false);
+        }
+      } catch (error) {
+        console.error('Error checking user interactions:', error);
+        setIsLiked(false);
+        setIsBookmarked(false);
+      }
+    };
+
+    checkUserInteractions();
+  }, [story, user]);
 
   // Set initial like count from story data
   useEffect(() => {
@@ -199,66 +224,96 @@ export default function StoryContainer({
   }, [readingMode])
 
   const toggleLike = async () => {
-    if (!user || !story) {
-      openModal()
-      return
-    }
-
-    const newIsLiked = !isLiked
-    setIsLiked(newIsLiked)
-    setLikeCount((prevCount: number) => newIsLiked ? prevCount + 1 : prevCount - 1)
+    if (!story) return;
 
     try {
-      if (newIsLiked) {
-        await fetch('/api/likes', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ storyId: story.id }),
-        })
-      } else {
-        await fetch(`/api/likes?storyId=${story.id}`, {
-          method: 'DELETE',
-        })
-      }
+      await handleAuthAction(async () => {
+        // Optimistically update UI
+        const newIsLiked = !isLiked;
+        setIsLiked(newIsLiked);
+        setLikeCount((prevCount: number) => newIsLiked ? prevCount + 1 : Math.max(0, prevCount - 1));
+
+        try {
+          if (newIsLiked) {
+            const response = await fetch('/api/likes', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ storyId: story.id }),
+              credentials: 'include', // Include cookies for authentication
+            });
+
+            if (!response.ok) {
+              throw new Error(`Failed to like story: ${response.status}`);
+            }
+          } else {
+            const response = await fetch(`/api/likes?storyId=${story.id}`, {
+              method: 'DELETE',
+              credentials: 'include', // Include cookies for authentication
+            });
+
+            if (!response.ok) {
+              throw new Error(`Failed to unlike story: ${response.status}`);
+            }
+          }
+        } catch (error) {
+          console.error('Error toggling like:', error);
+          // Revert UI changes on error
+          setIsLiked(!newIsLiked);
+          setLikeCount((prevCount: number) => !newIsLiked ? prevCount + 1 : Math.max(0, prevCount - 1));
+        }
+      }, openModal);
     } catch (error) {
-      console.error('Error toggling like:', error)
-      setIsLiked(!newIsLiked)
-      setLikeCount((prevCount: number) => !newIsLiked ? prevCount + 1 : prevCount - 1)
+      console.error('Error in like action:', error);
     }
-  }
+  };
 
   const toggleBookmark = async () => {
-    if (!user || !story) {
-      openModal()
-      return
-    }
-
-    const newIsBookmarked = !isBookmarked
-    setIsBookmarked(newIsBookmarked)
-    setBookmarkCount((prevCount: number) => newIsBookmarked ? prevCount + 1 : prevCount - 1)
+    if (!story) return;
 
     try {
-      if (newIsBookmarked) {
-        await fetch('/api/bookmarks', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ storyId: story.id }),
-        })
-      } else {
-        await fetch(`/api/bookmarks?storyId=${story.id}`, {
-          method: 'DELETE',
-        })
-      }
+      await handleAuthAction(async () => {
+        // Optimistically update UI
+        const newIsBookmarked = !isBookmarked;
+        setIsBookmarked(newIsBookmarked);
+        setBookmarkCount((prevCount: number) => newIsBookmarked ? prevCount + 1 : Math.max(0, prevCount - 1));
+
+        try {
+          if (newIsBookmarked) {
+            const response = await fetch('/api/bookmarks', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ storyId: story.id }),
+              credentials: 'include', // Include cookies for authentication
+            });
+
+            if (!response.ok) {
+              throw new Error(`Failed to bookmark story: ${response.status}`);
+            }
+          } else {
+            const response = await fetch(`/api/bookmarks?storyId=${story.id}`, {
+              method: 'DELETE',
+              credentials: 'include', // Include cookies for authentication
+            });
+
+            if (!response.ok) {
+              throw new Error(`Failed to remove bookmark: ${response.status}`);
+            }
+          }
+        } catch (error) {
+          console.error('Error toggling bookmark:', error);
+          // Revert UI changes on error
+          setIsBookmarked(!newIsBookmarked);
+          setBookmarkCount((prevCount: number) => !newIsBookmarked ? prevCount + 1 : Math.max(0, prevCount - 1));
+        }
+      }, openModal);
     } catch (error) {
-      console.error('Error toggling bookmark:', error)
-      setIsBookmarked(!newIsBookmarked)
-      setBookmarkCount((prevCount: number) => !newIsBookmarked ? prevCount + 1 : prevCount - 1)
+      console.error('Error in bookmark action:', error);
     }
-  }
+  };
 
   const toggleComments = () => {
     if (!user || !story) {

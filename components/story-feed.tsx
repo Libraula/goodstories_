@@ -51,9 +51,13 @@ export default function StoryFeed() {
         if (fetchedStories && fetchedStories.length > 0) {
           // Explicitly cast the fetched stories to ensure TypeScript recognizes them as Story[]
           setStories(fetchedStories as Story[])
+        } else {
+          console.warn("No stories found or empty array returned")
+          setStories([])
         }
       } catch (error) {
         console.error("Error fetching stories:", error)
+        setStories([])
       } finally {
         setIsLoading(false)
       }
@@ -100,6 +104,30 @@ export default function StoryFeed() {
     setTimeout(() => {
       setIsTransitioning(false)
     }, 500) // Adjust timing to match scroll animation duration
+  }
+
+  // Function to handle tab switching with authentication check
+  const handleTabClick = (tabName: string) => {
+    // Check if user is logged in for tabs that require authentication
+    if ((tabName === "createTab" || tabName === "profileTab" || tabName === "notificationsTab" || tabName === "bookmarksTab") && !user) {
+      setLoginMessage(`Please log in to access the ${tabName.replace('Tab', '')} feature`)
+      setRequestedTab(tabName)
+      openModal()
+      return
+    }
+
+    setActiveTab(tabName)
+    
+    // Reset scroll position when switching tabs
+    if (storyFeedRef.current) {
+      if (readingMode === "page") {
+        storyFeedRef.current.scrollTop = 0
+      } else {
+        storyFeedRef.current.scrollLeft = 0
+      }
+    }
+    
+    setActiveStoryIndex(0)
   }
 
   // Enhanced scroll handling
@@ -231,11 +259,6 @@ export default function StoryFeed() {
     }
   }, [activeStoryIndex, readingMode, isScrolling, lastScrollTime, lastScrollPosition, stories.length, isTransitioning])
 
-  const handleTabChange = (tabId: string) => {
-    // Allow navigation to any tab without showing login modal
-    setActiveTab(tabId)
-  }
-
   // Handle login modal close
   const handleLoginModalClose = () => {
     closeModal()
@@ -335,7 +358,7 @@ export default function StoryFeed() {
           {user && (
             <div
               className="w-8 h-8 rounded-full overflow-hidden cursor-pointer"
-              onClick={() => setActiveTab("profileTab")}
+              onClick={() => handleTabClick("profileTab")}
             >
               <Image
                 src={userAvatarUrl || "/placeholder.svg"}
@@ -397,7 +420,7 @@ export default function StoryFeed() {
                   There are no stories available right now. Be the first to create one!
                 </p>
                 <button 
-                  onClick={() => setActiveTab("createTab")}
+                  onClick={() => handleTabClick("createTab")}
                   className="px-4 py-2 bg-highlight text-white rounded-full"
                 >
                   Create a Story
@@ -491,31 +514,31 @@ export default function StoryFeed() {
           icon={<Home className="w-6 h-6 mb-1" />}
           label="Home"
           isActive={activeTab === "homeTab"}
-          onClick={() => handleTabChange("homeTab")}
+          onClick={() => handleTabClick("homeTab")}
         />
         <NavItem
           icon={<Compass className="w-6 h-6 mb-1" />}
           label="Discover"
           isActive={activeTab === "discoverTab"}
-          onClick={() => handleTabChange("discoverTab")}
+          onClick={() => handleTabClick("discoverTab")}
         />
         <NavItem
           icon={<PlusCircle className="w-6 h-6 mb-1" />}
           label="Create"
           isActive={activeTab === "createTab"}
-          onClick={() => handleTabChange("createTab")}
+          onClick={() => handleTabClick("createTab")}
         />
         <NavItem
           icon={<Bell className="w-6 h-6 mb-1" />}
           label="Notifications"
           isActive={activeTab === "notificationsTab"}
-          onClick={() => handleTabChange("notificationsTab")}
+          onClick={() => handleTabClick("notificationsTab")}
         />
         <NavItem
           icon={<User className="w-6 h-6 mb-1" />}
           label="Profile"
           isActive={activeTab === "profileTab"}
-          onClick={() => handleTabChange("profileTab")}
+          onClick={() => handleTabClick("profileTab")}
         />
       </nav>
 

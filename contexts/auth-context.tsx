@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { Session, User } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 type AuthContextType = {
   session: Session | null
@@ -18,6 +18,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [supabase] = useState(() => createClient())
 
   useEffect(() => {
     // Get initial session
@@ -39,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.unsubscribe()
     }
-  }, [])
+  }, [supabase])
 
   const signInWithGoogle = async () => {
     try {
@@ -49,7 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined
         }
       })
-      if (error) throw error
+
+      if (error) {
+        console.error('Error signing in with Google:', error)
+      }
     } catch (error) {
       console.error('Error signing in with Google:', error)
     }
@@ -58,7 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut()
-      if (error) throw error
+      if (error) {
+        console.error('Error signing out:', error)
+      }
     } catch (error) {
       console.error('Error signing out:', error)
     }
@@ -69,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     isLoading,
     signInWithGoogle,
-    signOut
+    signOut,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
