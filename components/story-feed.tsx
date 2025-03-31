@@ -520,9 +520,9 @@ export default function StoryFeed() {
       </div>
 
       {/* App Header - Adjust to span only the content area on desktop */}
-      <header className="app-header fixed top-0 w-full py-4 px-4 flex justify-between items-center bg-paper dark:bg-paper-dark z-[100] border-b border-paper-dark/20 dark:border-paper/20 lg:static lg:col-start-2 lg:col-end-3">
+      <header className="app-header fixed top-0 w-full py-4 px-4 flex items-center bg-paper dark:bg-paper-dark z-[100] border-b border-paper-dark/20 dark:border-paper/20 lg:static lg:col-start-2 lg:col-end-3 lg:pr-6"> {/* Removed justify-between, added lg:pr-6 */}
         <div className="app-title text-2xl font-bold text-highlight dark:text-highlight lg:hidden">GoodStories</div>
-        <div className="header-icons flex items-center gap-4">
+        <div className="header-icons flex items-center gap-4 ml-auto"> {/* Added ml-auto */}
           <Search className="w-6 h-6 text-ink dark:text-ink-light cursor-pointer" />
           <Link href="/bookmarks" passHref>
             <BookmarkIcon className="w-6 h-6 text-ink dark:text-ink-light cursor-pointer" />

@@ -253,6 +253,18 @@ export default function StoryEditor({ onClose, onSuccess }: { onClose: () => voi
     }
   }, [editor])
 
+  // Add/Remove body class for editor view
+  useEffect(() => {
+    document.body.classList.add("editor-active")
+    // Prevent body scroll when editor is open on mobile
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.classList.remove("editor-active")
+      document.body.style.overflow = ''; // Restore body scroll
+    }
+  }, []) // Empty dependency array ensures this runs only on mount and unmount
+
   // Calculate pages from editor content
   useEffect(() => {
     if (!editor) return
@@ -381,9 +393,10 @@ export default function StoryEditor({ onClose, onSuccess }: { onClose: () => voi
   }
 
   return (
-    <div className="w-full h-full flex flex-col bg-paper dark:bg-paper-dark overflow-hidden">
-      {/* Editor Header */}
-      <div className="editor-header p-4 flex justify-between items-center border-b border-paper-dark/20 dark:border-paper/20 bg-white dark:bg-paper-dark">
+    // Make container fixed and cover screen on smaller devices
+    <div className="w-full h-full flex flex-col bg-paper dark:bg-paper-dark overflow-hidden lg:relative lg:h-auto">
+      {/* Editor Header - Fixed on mobile, sticky on desktop */}
+      <div className="editor-header fixed top-0 left-0 right-0 z-10 p-4 flex justify-between items-center border-b border-paper-dark/20 dark:border-paper/20 bg-white dark:bg-paper-dark lg:sticky">
         <div className="flex items-center gap-2">
           <button
             onClick={onClose}
@@ -404,8 +417,8 @@ export default function StoryEditor({ onClose, onSuccess }: { onClose: () => voi
         </button>
       </div>
 
-      {/* Editor Body - Scrollable */}
-      <div className="editor-body flex-1 overflow-y-auto p-4 md:p-6">
+      {/* Editor Body - Scrollable with padding-top on mobile */}
+      <div className="editor-body flex-1 overflow-y-auto p-4 md:p-6 pt-[68px] lg:pt-4"> {/* Added pt-[68px] for mobile header offset */}
         <div className="max-w-4xl mx-auto">
           {/* Title Input */}
           <div className="mb-6">
@@ -499,35 +512,19 @@ export default function StoryEditor({ onClose, onSuccess }: { onClose: () => voi
             </div>
           )}
 
-          {/* Preview Section */}
-          <div className="preview-section mb-6">
-            <h3 className="text-md font-medium text-ink dark:text-ink mb-2">Preview</h3>
-            <div className="preview-pages bg-paper/30 dark:bg-paper-dark/30 rounded-lg p-4 max-h-[300px] overflow-y-auto">
-              {pages.length > 0 ? (
-                <div className="space-y-4">
-                  {pages.map((page, index) => (
-                    <div key={index} className="preview-page">
-                      <div className="text-xs text-ink-light dark:text-ink-light mb-1">Page {index + 1}</div>
-                      <div className="space-y-2">
-                        {page.content.map((paragraph, pIndex) => (
-                          <p key={pIndex} className="text-sm text-ink dark:text-ink">
-                            {paragraph}
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+          {/* Preview Pages (Optional) */}
+          {/* <div className="preview-pages">
+            <h4 className="text-md font-medium mb-2">Page Preview ({pages.length})</h4>
+            <div className="flex flex-col gap-2 border p-2 rounded max-h-40 overflow-y-auto">
+              {pages.map((page, index) => (
+                <div key={index} className="text-xs p-1 bg-paper-light dark:bg-paper-dark/50 rounded">
+                  <strong>Page {index + 1}:</strong> {page.content.join(' ').substring(0, 50)}...
                 </div>
-              ) : (
-                <p className="text-sm text-ink-light dark:text-ink-light italic">
-                  Your story preview will appear here...
-                </p>
-              )}
+              ))}
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>
   )
 }
-

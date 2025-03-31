@@ -420,6 +420,16 @@ body {
     overflow: visible !important; /* Prevent clipping fixed children */
   }
   
+  /* Hide main nav when editor is active on mobile */
+  @media (max-width: 1023px) {
+    body.editor-active .app-header {
+      display: none !important;
+    }
+    body.editor-active .bottom-nav {
+      display: none !important;
+    }
+  }
+  
 
   .editor-header h2 {
     font-size: 1.25rem;
