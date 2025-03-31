@@ -223,15 +223,13 @@ export default function StoryContainer({
       const newPage = Math.round(scrollPosition / dimension)
       if (newPage !== currentPage && newPage >= 0 && newPage < story.pages.length) {
         setCurrentPage(newPage)
-        // No need to call scrollToPage here, scroll event handles index update
       }
     }
     container.addEventListener("scroll", handleScroll)
     return () => container.removeEventListener("scroll", handleScroll)
-  }, [currentPage, story.pages.length, isTransitioning, readingMode]) // Removed scrollToPage dependency
+  }, [currentPage, story.pages.length, isTransitioning, readingMode])
 
   useEffect(() => {
-    // Initial scroll positioning
     const element = pagesContainerRef.current;
     if (element) {
         const dimension = readingMode === "page" ? element.clientWidth : element.clientHeight;
@@ -241,7 +239,7 @@ export default function StoryContainer({
             behavior: "auto",
         });
     }
-  }, [readingMode, currentPage]); // Rerun when readingMode or currentPage changes
+  }, [readingMode, currentPage]);
 
   const toggleLike = async () => {
     if (!story) return
@@ -421,16 +419,16 @@ export default function StoryContainer({
       onTouchEnd={handleTouchEnd}
     >
       {/* Apply full screen styles conditionally */}
-      <div // This outer div becomes the main fullscreen container
+      <div // This outer div becomes the main fullscreen container AND the scroll container
         className={`story-content flex flex-col relative transition-all duration-300 ease-in-out ${
           isFullScreen
-            ? "fixed inset-0 z-[100] bg-paper dark:bg-paper-dark p-0 overflow-hidden" // Use overflow-hidden as inner div handles scroll
+            ? "fixed inset-0 z-[100] bg-paper dark:bg-paper-dark p-0 overflow-y-auto" // Removed padding here
             : "h-full w-full bg-paper dark:bg-paper-dark" // Normal styles
         }`}
       >
         {/* Story header with author info - only on first page */}
         {currentPage === 0 && ( // Show header on first page even in fullscreen
-          <div className={`story-header px-4 py-3 flex items-center justify-between ${isFullScreen ? 'absolute top-[5px] left-0 right-0 z-[105] bg-paper dark:bg-paper-dark' : 'relative border-b border-paper-dark/20 dark:border-paper/20'}`}>
+          <div className={`story-header px-4 py-3 flex items-center justify-between ${isFullScreen ? 'sticky top-0 z-[105] bg-paper dark:bg-paper-dark' : 'relative border-b border-paper-dark/20 dark:border-paper/20'}`}> {/* Sticky header in fullscreen */}
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full overflow-hidden border border-paper-dark/20 dark:border-paper/20">
                 <Image
@@ -455,14 +453,14 @@ export default function StoryContainer({
         )}
         {/* Story pages */}
         {/* Adjust pages container based on full screen */}
-        <div // This becomes the scrollable area in fullscreen
+        <div // Removed absolute positioning, let it flow
           className={`story-pages ${
             readingMode === "page"
               ? "flex flex-row overflow-x-auto snap-x snap-mandatory" // Keep horizontal scroll for page mode
-              : "flex flex-col snap-y snap-mandatory" // Remove overflow-y here for scroll mode
-          } ${isFullScreen ? 'absolute top-[57px] bottom-[50px] left-0 right-0 overflow-y-auto z-[101]' : 'flex-1 h-full overflow-y-auto'}`} // Add overflow-y back for normal mode
+              : "flex flex-col snap-y snap-mandatory"
+          } ${isFullScreen ? 'pb-[55px]' : 'flex-1 h-full overflow-y-auto'}`} // Added bottom padding in fullscreen, keep normal mode classes
           ref={pagesContainerRef}
-          style={{ // Remove style prop as height is handled by classes now
+          style={{ // Keep base styles
             scrollbarWidth: "none",
             WebkitOverflowScrolling: "touch",
             scrollSnapType: readingMode === "page" ? "x mandatory" : "y mandatory",
@@ -471,24 +469,17 @@ export default function StoryContainer({
           {story.pages.map((page, index) => (
             <div
               key={index}
-              className={`story-page ${
-                readingMode === "page" ? "min-w-full snap-center" : "w-full min-h-full snap-start"
+              className={`story-page ${ // Simplified classes
+                readingMode === "page" ? "min-w-full snap-center" : "w-full snap-start" // Removed min-h-full
               } p-4 flex flex-col overflow-hidden`}
-              style={
+              style={ // Removed all inline styles
                 !isFullScreen
-                  ? {
-                      height: readingMode === "page" ? `${containerHeight}px` : "auto",
-                    }
-                  : {
-                      // In full screen, let content determine height, ensure min-height for scroll mode
-                      minHeight: readingMode === 'scroll' ? '100vh' : undefined,
-                      height: readingMode === 'page' ? '100%' : undefined, // Ensure page takes full height
-                      width: readingMode === 'page' ? '100vw' : undefined, // Ensure page takes full width
-                    }
+                  ? { height: readingMode === "page" ? `${containerHeight}px` : "auto" }
+                  : {} // No specific fullscreen styles needed here now
               }
             >
               <div className="story-page-content h-full flex flex-col">
-                <div ref={index === currentPage ? contentRef : null} className="story-content-wrapper lg:max-w-3xl lg:mx-auto pt-8 pb-16"> {/* Simplified wrapper, width constraint always applied */}
+                <div ref={index === currentPage ? contentRef : null} className={`story-content-wrapper lg:max-w-3xl lg:mx-auto ${isFullScreen ? 'pt-4 pb-4' : 'pt-8 pb-16'}`}> {/* Conditional padding */}
                   {/* Show title always in full screen, only on first page otherwise */}
                   {(index === 0 || isFullScreen) && (
                     <h2 className={`story-title text-xl mb-3 text-highlight dark:text-highlight font-bold leading-tight ${isFullScreen ? 'px-4' : ''}`}>
@@ -546,7 +537,7 @@ export default function StoryContainer({
             </div>
           ))}
         </div>
-      </div>
+      </div> {/* End of story-content */}
 
       {/* Action buttons */}
       <div

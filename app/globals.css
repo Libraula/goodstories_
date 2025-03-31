@@ -414,6 +414,12 @@ body {
   body.story-fullscreen-active .bottom-nav {
     display: none !important; /* Use !important for higher specificity */
   }
+  
+  /* Allow app container to show fixed fullscreen content */
+  body.story-fullscreen-active .app-container {
+    overflow: visible !important; /* Prevent clipping fixed children */
+  }
+  
 
   .editor-header h2 {
     font-size: 1.25rem;
