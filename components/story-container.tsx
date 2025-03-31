@@ -79,13 +79,10 @@ export default function StoryContainer({
       // Disable scroll on the underlying feed
       storyFeedElement.addEventListener("wheel", preventScroll, { passive: false })
       storyFeedElement.addEventListener("touchmove", preventScroll, { passive: false })
-      // Optionally add a class to body or container if needed for visual cues or further styling
-      // document.body.classList.add('comments-open');
     } else if (storyFeedElement) {
       // Re-enable scroll
       storyFeedElement.removeEventListener("wheel", preventScroll)
       storyFeedElement.removeEventListener("touchmove", preventScroll)
-      // document.body.classList.remove('comments-open');
     }
 
     // Cleanup function
@@ -93,7 +90,6 @@ export default function StoryContainer({
       if (storyFeedElement) {
         storyFeedElement.removeEventListener("wheel", preventScroll)
         storyFeedElement.removeEventListener("touchmove", preventScroll)
-        // document.body.classList.remove('comments-open'); // Ensure cleanup on unmount
       }
     }
   }, [showComments]) // Re-run effect when showComments changes
@@ -110,10 +106,7 @@ export default function StoryContainer({
   }
 
   useEffect(() => {
-    const handleResize = () => {
-      // Removed setIsMobile since it's not used anywhere
-    }
-
+    const handleResize = () => {}
     handleResize()
     window.addEventListener("resize", handleResize)
     return () => window.removeEventListener("resize", handleResize)
@@ -134,21 +127,16 @@ export default function StoryContainer({
 
     const checkUserInteractions = async () => {
       if (!user) {
-        // If user is not authenticated, set default values
         setIsLiked(false)
         setIsBookmarked(false)
         return
       }
 
       try {
-        // Check if the user has liked the story - use API route instead of direct Supabase call
         const likeResponse = await fetch(`/api/likes/check?storyId=${story.id}`, {
           method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
         })
-
         if (likeResponse.ok) {
           const likeData = await likeResponse.json()
           setIsLiked(likeData.isLiked || false)
@@ -157,14 +145,10 @@ export default function StoryContainer({
           setIsLiked(false)
         }
 
-        // Check if the user has bookmarked the story - use API route instead of direct Supabase call
         const bookmarkResponse = await fetch(`/api/bookmarks/check?storyId=${story.id}`, {
           method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
         })
-
         if (bookmarkResponse.ok) {
           const bookmarkData = await bookmarkResponse.json()
           setIsBookmarked(bookmarkData.isBookmarked || false)
@@ -192,7 +176,6 @@ export default function StoryContainer({
       const availableHeight = viewportHeight - headerHeight - bottomNavHeight - 10
       setContainerHeight(availableHeight)
     }
-
     updateHeight()
     window.addEventListener("resize", updateHeight)
     return () => window.removeEventListener("resize", updateHeight)
@@ -200,7 +183,6 @@ export default function StoryContainer({
 
   useEffect(() => {
     if (!containerRef.current) return
-
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -209,7 +191,6 @@ export default function StoryContainer({
       },
       { threshold: 0.7 },
     )
-
     observer.observe(containerRef.current)
     return () => {
       if (containerRef.current) observer.unobserve(containerRef.current)
@@ -218,24 +199,15 @@ export default function StoryContainer({
 
   const scrollToPage = (index: number) => {
     if (!pagesContainerRef.current || isTransitioning || index < 0 || index >= story.pages.length) return
-
     setIsTransitioning(true)
-
-    // Set the current page immediately to update UI
     setCurrentPage(index)
-
     const container = pagesContainerRef.current
     const dimension = readingMode === "page" ? container.clientWidth : container.clientHeight
     const position = dimension * index
-
-    // Scroll immediately without animation
     container.scrollTo({
       [readingMode === "page" ? "left" : "top"]: position,
       behavior: "auto",
     })
-
-    // Keep the transition state active for a realistic amount of time
-    // This prevents rapid successive page changes and gives content time to render
     setTimeout(() => {
       setIsTransitioning(false)
     }, TRANSITION_DURATION)
@@ -244,65 +216,58 @@ export default function StoryContainer({
   useEffect(() => {
     const container = pagesContainerRef.current
     if (!container) return
-
     const handleScroll = () => {
       if (isTransitioning) return
-
       const dimension = readingMode === "page" ? container.clientWidth : container.clientHeight
       const scrollPosition = readingMode === "page" ? container.scrollLeft : container.scrollTop
       const newPage = Math.round(scrollPosition / dimension)
-
       if (newPage !== currentPage && newPage >= 0 && newPage < story.pages.length) {
         setCurrentPage(newPage)
-        scrollToPage(newPage)
+        // No need to call scrollToPage here, scroll event handles index update
       }
     }
-
     container.addEventListener("scroll", handleScroll)
     return () => container.removeEventListener("scroll", handleScroll)
-  }, [currentPage, story.pages.length, isTransitioning, readingMode])
+  }, [currentPage, story.pages.length, isTransitioning, readingMode]) // Removed scrollToPage dependency
 
   useEffect(() => {
-    scrollToPage(currentPage)
-  }, [readingMode])
+    // Initial scroll positioning
+    const element = pagesContainerRef.current;
+    if (element) {
+        const dimension = readingMode === "page" ? element.clientWidth : element.clientHeight;
+        const position = dimension * currentPage;
+        element.scrollTo({
+            [readingMode === "page" ? "left" : "top"]: position,
+            behavior: "auto",
+        });
+    }
+  }, [readingMode, currentPage]); // Rerun when readingMode or currentPage changes
 
   const toggleLike = async () => {
     if (!story) return
-
     try {
       await handleAuthAction(async () => {
-        // Optimistically update UI
         const newIsLiked = !isLiked
         setIsLiked(newIsLiked)
         setLikeCount((prevCount: number) => (newIsLiked ? prevCount + 1 : Math.max(0, prevCount - 1)))
-
         try {
           if (newIsLiked) {
             const response = await fetch("/api/likes", {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ storyId: story.id }),
-              credentials: "include", // Include cookies for authentication
+              credentials: "include",
             })
-
-            if (!response.ok) {
-              throw new Error(`Failed to like story: ${response.status}`)
-            }
+            if (!response.ok) throw new Error(`Failed to like story: ${response.status}`)
           } else {
             const response = await fetch(`/api/likes?storyId=${story.id}`, {
               method: "DELETE",
-              credentials: "include", // Include cookies for authentication
+              credentials: "include",
             })
-
-            if (!response.ok) {
-              throw new Error(`Failed to unlike story: ${response.status}`)
-            }
+            if (!response.ok) throw new Error(`Failed to unlike story: ${response.status}`)
           }
         } catch (error) {
           console.error("Error toggling like:", error)
-          // Revert UI changes on error
           setIsLiked(!newIsLiked)
           setLikeCount((prevCount: number) => (!newIsLiked ? prevCount + 1 : Math.max(0, prevCount - 1)))
         }
@@ -314,41 +279,29 @@ export default function StoryContainer({
 
   const toggleBookmark = async () => {
     if (!story) return
-
     try {
       await handleAuthAction(async () => {
-        // Optimistically update UI
         const newIsBookmarked = !isBookmarked
         setIsBookmarked(newIsBookmarked)
         setBookmarkCount((prevCount: number) => (newIsBookmarked ? prevCount + 1 : Math.max(0, prevCount - 1)))
-
         try {
           if (newIsBookmarked) {
             const response = await fetch("/api/bookmarks", {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ storyId: story.id }),
-              credentials: "include", // Include cookies for authentication
+              credentials: "include",
             })
-
-            if (!response.ok) {
-              throw new Error(`Failed to bookmark story: ${response.status}`)
-            }
+            if (!response.ok) throw new Error(`Failed to bookmark story: ${response.status}`)
           } else {
             const response = await fetch(`/api/bookmarks?storyId=${story.id}`, {
               method: "DELETE",
-              credentials: "include", // Include cookies for authentication
+              credentials: "include",
             })
-
-            if (!response.ok) {
-              throw new Error(`Failed to remove bookmark: ${response.status}`)
-            }
+            if (!response.ok) throw new Error(`Failed to remove bookmark: ${response.status}`)
           }
         } catch (error) {
           console.error("Error toggling bookmark:", error)
-          // Revert UI changes on error
           setIsBookmarked(!newIsBookmarked)
           setBookmarkCount((prevCount: number) => (!newIsBookmarked ? prevCount + 1 : Math.max(0, prevCount - 1)))
         }
@@ -363,7 +316,6 @@ export default function StoryContainer({
       openModal()
       return
     }
-
     setShowComments(!showComments)
   }
 
@@ -373,34 +325,21 @@ export default function StoryContainer({
 
   const viewAuthorProfile = () => {
     if (!story?.author?.id) return
-
-    // Navigate to author profile page
     window.location.href = `/profile/${story.author.id}`
   }
     // Function to toggle full screen mode
     const toggleFullScreen = useCallback(() => {
       setIsFullScreen((prev) => !prev)
     }, [])
-  
+
     // Function to handle audio playback (placeholder)
     const playAudio = useCallback(() => {
-      // TODO: Implement text-to-speech functionality
       console.log("Play audio for story:", story?.id)
-      // Example: Use SpeechSynthesis API
-      // if ('speechSynthesis' in window && story?.pages) {
-      //   const utterance = new SpeechSynthesisUtterance(story.pages.map(p => p.content.join(' ')).join('\n'));
-      //   // Configure utterance properties (voice, rate, pitch) if needed
-      //   speechSynthesis.speak(utterance);
-      // } else {
-      //   alert('Text-to-speech is not supported in your browser.');
-      // }
     }, [story])
 
   // Format count for display (e.g., 1000 -> 1K)
   const formatCount = (count: number | undefined | null): string => {
-    // Ensure count is a valid number
     const safeCount = typeof count === "number" ? count : 0
-
     if (safeCount >= 1000) {
       return `${(safeCount / 1000).toFixed(1)}K`
     }
@@ -412,53 +351,43 @@ export default function StoryContainer({
     setTouchStartTime(now)
     setTouchStartX(e.touches[0].clientX)
     setTouchStartY(e.touches[0].clientY)
-
     if (e.touches.length === 2) {
       setInitialPinchDistance(getPinchDistance(e))
     }
-
-    // Double tap detection
     if (now - lastTapTime < 300) {
-      toggleFullScreen() // Toggle full screen on double tap
-      e.preventDefault() // Prevent zoom or other default actions
-      setLastTapTime(0) // Reset last tap time to prevent immediate re-trigger
-      return // Exit early
+      toggleFullScreen()
+      e.preventDefault()
+      setLastTapTime(0)
+      return
     }
     setLastTapTime(now)
   }
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    // Pinch detection for full screen
     if (e.touches.length === 2 && initialPinchDistance !== null) {
       const currentDistance = getPinchDistance(e)
       const pinchChange = currentDistance - initialPinchDistance
-      const pinchThreshold = 50 // Sensitivity for pinch gesture
-
+      const pinchThreshold = 50
       if (pinchChange > pinchThreshold && !isFullScreen) {
-        // Pinch Out -> Enter Full Screen
         setIsFullScreen(true)
-        setInitialPinchDistance(null) // Reset pinch distance
+        setInitialPinchDistance(null)
         e.preventDefault()
       } else if (pinchChange < -pinchThreshold && isFullScreen) {
-        // Pinch In -> Exit Full Screen
         setIsFullScreen(false)
-        setInitialPinchDistance(null) // Reset pinch distance
+        setInitialPinchDistance(null)
         e.preventDefault()
       }
-      // No else needed, allow default pinch zoom if not crossing threshold or already in target state
     }
   }
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     setInitialPinchDistance(null)
     if (!e.changedTouches?.length) return
-
     const touchEndX = e.changedTouches[0].clientX
     const touchEndY = e.changedTouches[0].clientY
     const deltaX = touchEndX - touchStartX
     const deltaY = touchEndY - touchStartY
     const swipeThreshold = 50
-
     if (readingMode === "page") {
       if (Math.abs(deltaX) > swipeThreshold && Math.abs(deltaX) > Math.abs(deltaY)) {
         if (deltaX > 0 && currentPage > 0) scrollToPage(currentPage - 1)
@@ -486,23 +415,22 @@ export default function StoryContainer({
   return (
     <div
       ref={containerRef}
-      className="story-container w-full h-full relative p-0 bg-transparent lg:min-h-auto" // Make container transparent
+      className="story-container w-full h-full relative p-0 bg-transparent lg:min-h-auto"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
       {/* Apply full screen styles conditionally */}
-      <div
+      <div // This outer div becomes the main fullscreen container
         className={`story-content flex flex-col relative transition-all duration-300 ease-in-out ${
           isFullScreen
-            ? "fixed inset-0 z-[100] bg-paper dark:bg-paper-dark p-0 overflow-auto" // Full screen styles
+            ? "fixed inset-0 z-[100] bg-paper dark:bg-paper-dark p-0 overflow-hidden" // Use overflow-hidden as inner div handles scroll
             : "h-full w-full bg-paper dark:bg-paper-dark" // Normal styles
         }`}
       >
         {/* Story header with author info - only on first page */}
-        {/* Hide header in full screen */}
-        {currentPage === 0 && !isFullScreen && (
-          <div className="story-header px-4 py-3 flex items-center justify-between border-b border-paper-dark/20 dark:border-paper/20">
+        {currentPage === 0 && ( // Show header on first page even in fullscreen
+          <div className={`story-header px-4 py-3 flex items-center justify-between ${isFullScreen ? 'absolute top-[5px] left-0 right-0 z-[105] bg-paper dark:bg-paper-dark' : 'relative border-b border-paper-dark/20 dark:border-paper/20'}`}>
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full overflow-hidden border border-paper-dark/20 dark:border-paper/20">
                 <Image
@@ -527,19 +455,17 @@ export default function StoryContainer({
         )}
         {/* Story pages */}
         {/* Adjust pages container based on full screen */}
-        <div
-          className={`story-pages flex-1 ${
+        <div // This becomes the scrollable area in fullscreen
+          className={`story-pages ${
             readingMode === "page"
-              ? "flex flex-row overflow-x-auto snap-x snap-mandatory"
-              : "flex flex-col overflow-y-auto snap-y snap-mandatory"
-          } ${isFullScreen ? "h-auto" : "h-full"}`} // Allow content height in full screen
+              ? "flex flex-row overflow-x-auto snap-x snap-mandatory" // Keep horizontal scroll for page mode
+              : "flex flex-col snap-y snap-mandatory" // Remove overflow-y here for scroll mode
+          } ${isFullScreen ? 'absolute top-[57px] bottom-[50px] left-0 right-0 overflow-y-auto z-[101]' : 'flex-1 h-full overflow-y-auto'}`} // Add overflow-y back for normal mode
           ref={pagesContainerRef}
-          style={{
+          style={{ // Remove style prop as height is handled by classes now
             scrollbarWidth: "none",
             WebkitOverflowScrolling: "touch",
             scrollSnapType: readingMode === "page" ? "x mandatory" : "y mandatory",
-            // Ensure container takes full height in fullscreen page mode
-            height: isFullScreen && readingMode === 'page' ? '100%' : undefined,
           }}
         >
           {story.pages.map((page, index) => (
@@ -561,8 +487,8 @@ export default function StoryContainer({
                     }
               }
             >
-              <div className="story-page-content h-full flex flex-col justify-between">
-                <div ref={index === currentPage ? contentRef : null} className={`story-content-wrapper flex-1 ${isFullScreen ? 'pt-8 pb-16' : ''}`}> {/* Add padding in full screen */}
+              <div className="story-page-content h-full flex flex-col">
+                <div ref={index === currentPage ? contentRef : null} className="story-content-wrapper lg:max-w-3xl lg:mx-auto pt-8 pb-16"> {/* Simplified wrapper, width constraint always applied */}
                   {/* Show title always in full screen, only on first page otherwise */}
                   {(index === 0 || isFullScreen) && (
                     <h2 className={`story-title text-xl mb-3 text-highlight dark:text-highlight font-bold leading-tight ${isFullScreen ? 'px-4' : ''}`}>
@@ -575,7 +501,6 @@ export default function StoryContainer({
                       className="story-text leading-relaxed mb-4 text-ink dark:text-ink"
                       style={{
                         fontSize: "var(--story-font-size)",
-                        // Remove maxHeight constraint in full screen
                         maxHeight: !isFullScreen && readingMode === "page" ? `${containerHeight - 120}px` : "none",
                       }}
                     >
@@ -625,7 +550,7 @@ export default function StoryContainer({
 
       {/* Action buttons */}
       <div
-        className={`action-buttons fixed ${isFullScreen ? 'top-4 right-4' : 'bottom-36 right-4'} flex ${isFullScreen ? 'flex-row' : 'flex-col'} gap-3 z-[110] transition-all duration-300 ${showActionIcons && isActive ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        className={`action-buttons fixed bottom-36 right-4 flex flex-col ${isFullScreen ? 'gap-4' : 'gap-3'} z-[110] transition-all duration-300 ${showActionIcons && isActive ? "opacity-100" : "opacity-0 pointer-events-none"}`}
       >
         <button
           onClick={toggleLike}
@@ -716,24 +641,24 @@ export default function StoryContainer({
         )}
       </div>
 
-      {/* Eye toggle button - only visible when story is active and NOT full screen */}
-      {isActive && !isFullScreen && (
+      {/* Eye toggle button */}
+      {isActive && ( // Reverted condition: Show only when active
         <button
+          className={`reading-mode-toggle fixed ${isFullScreen ? 'bottom-[5px] z-[120]' : 'bottom-24 z-20'} right-4 w-10 h-10 rounded-full flex items-center justify-center bg-highlight text-white border border-paper-dark/20 dark:border-paper/20 transition-all shadow-md`}
           onClick={toggleActionIcons}
-          className="reading-mode-toggle fixed bottom-24 right-4 w-10 h-10 rounded-full flex items-center justify-center bg-highlight text-white border border-paper-dark/20 dark:border-paper/20 transition-all z-20 shadow-md"
           aria-label={showActionIcons ? "Hide action icons" : "Show action icons"}
         >
           {showActionIcons ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
         </button>
       )}
 
-      {/* Page indicator - always show at bottom-center when active */}
+      {/* Page indicator */}
       {isActive && (
-         <div className={`page-indicator fixed bottom-4 left-1/2 transform -translate-x-1/2 px-3 py-1 rounded-full bg-paper/80 dark:bg-paper-dark/80 text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20 text-xs shadow-md ${isFullScreen ? 'z-[110]' : 'z-20'}`}>
-           {currentPage + 1} / {story.pages.length}
-         </div>
-       )}
-      {/* Comments section - slides in from the bottom */}
+          <div className={`page-indicator fixed ${isFullScreen ? 'bottom-[5px] z-[120]' : 'bottom-24 z-20'} left-1/2 transform -translate-x-1/2 px-3 py-1 rounded-full bg-highlight text-white font-bold border border-paper-dark/20 dark:border-paper/20 text-xs shadow-md`}> {/* Increased fullscreen z-index */}
+            {currentPage + 1} / {story.pages.length}
+          </div>
+        )}
+      {/* Comments section */}
       {showComments && (
         <div
           className="fixed inset-0 bg-black/50 z-40 flex items-end justify-center"
@@ -750,4 +675,3 @@ export default function StoryContainer({
     </div>
   )
 }
-

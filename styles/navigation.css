@@ -1,0 +1,9 @@
+/* Hide navigation elements when story is in full screen mode */
+
+body.story-fullscreen-active .app-header {
+  display: none !important; /* Use !important for higher specificity */
+}
+
+body.story-fullscreen-active .bottom-nav {
+  display: none !important; /* Use !important for higher specificity */
+}

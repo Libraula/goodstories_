@@ -405,6 +405,15 @@ body {
   .editor-header {
     padding: 0.75rem;
   }
+  
+  /* Hide navigation elements when story is in full screen mode */
+  body.story-fullscreen-active .app-header {
+    display: none !important; /* Use !important for higher specificity */
+  }
+  
+  body.story-fullscreen-active .bottom-nav {
+    display: none !important; /* Use !important for higher specificity */
+  }
 
   .editor-header h2 {
     font-size: 1.25rem;
@@ -414,6 +423,7 @@ body {
     padding: 0.75rem;
   }
 }
+
 
 /* Hide mobile nav bars when story is full screen */
 @media (max-width: 1023px) {
