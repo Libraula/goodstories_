@@ -39,17 +39,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Comment ID is required' }, { status: 400 });
     }
 
-    // Check if the like already exists using the service client (bypasses RLS for SELECT)
-    const { data: existingLike, error: checkError } = await supabaseService
+    // Check if the like already exists
+    const { data: existingLike, error: checkError } = await supabase
       .from('comment_likes')
       .select('id')
-      .eq('user_id', userId) // Still check against the authenticated user ID
+      .eq('user_id', userId)
       .eq('comment_id', commentId)
       .maybeSingle(); // Use maybeSingle to handle 0 or 1 result
 
     if (checkError) {
-      console.error('[API Comment Likes POST] Error checking for existing like:', checkError);
-      return NextResponse.json({ error: 'Failed to check like status' }, { status: 500 });
+      console.error('[API Comment Likes POST] Error checking for existing like:', JSON.stringify(checkError, null, 2)); // Log the full error object
+      return NextResponse.json({
+        error: 'Failed to check like status',
+        details: checkError // Include the error object in the response (for debugging)
+      }, { status: 500 });
     }
 
     if (existingLike) {
