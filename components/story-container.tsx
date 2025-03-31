@@ -117,6 +117,7 @@ export default function StoryContainer({
   }, [story])
 
   useEffect(() => {
+    // Ensure story exists before proceeding
     if (!story) {
       setIsLiked(false)
       setIsBookmarked(false)
@@ -125,48 +126,68 @@ export default function StoryContainer({
       return
     }
 
+    // Set counts immediately from story prop
+    setLikeCount(story.like_count ?? 0)
+    setBookmarkCount(story.bookmark_count ?? 0)
+
     const checkUserInteractions = async () => {
+      // Check if user is logged in
       if (!user) {
         setIsLiked(false)
         setIsBookmarked(false)
         return
       }
 
-      try {
-        const likeResponse = await fetch(`/api/likes/check?storyId=${story.id}`, {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-        })
-        if (likeResponse.ok) {
-          const likeData = await likeResponse.json()
-          setIsLiked(likeData.isLiked || false)
-        } else {
-          console.warn("Error checking like status:", await likeResponse.text())
-          setIsLiked(false)
-        }
-
-        const bookmarkResponse = await fetch(`/api/bookmarks/check?storyId=${story.id}`, {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-        })
-        if (bookmarkResponse.ok) {
-          const bookmarkData = await bookmarkResponse.json()
-          setIsBookmarked(bookmarkData.isBookmarked || false)
-        } else {
-          console.warn("Error checking bookmark status:", await bookmarkResponse.text())
-          setIsBookmarked(false)
-        }
-      } catch (error) {
-        console.error("Error checking user interactions:", error)
-        setIsLiked(false)
-        setIsBookmarked(false)
+      // Check if story.id is valid before fetching
+      if (!story.id) {
+          console.error("Story ID is missing, cannot check interactions.");
+          setIsLiked(false);
+          setIsBookmarked(false);
+          return;
       }
-    }
 
-    checkUserInteractions()
-    setLikeCount(story.like_count ?? 0)
-    setBookmarkCount(story.bookmark_count ?? 0)
-  }, [story, user])
+      try {
+        // Check likes
+        const likeUrl = `/api/likes/check?storyId=${story.id}`;
+        const likeResponse = await fetch(likeUrl, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        if (likeResponse.ok) {
+          const likeData = await likeResponse.json();
+          setIsLiked(likeData.isLiked || false);
+        } else {
+          console.warn(`Error checking like status (${likeResponse.status}) for story ${story.id}:`, await likeResponse.text());
+          setIsLiked(false); // Default to false on error
+        }
+
+        // Check bookmarks
+        const bookmarkUrl = `/api/bookmarks/check?storyId=${story.id}`;
+        const bookmarkResponse = await fetch(bookmarkUrl, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        if (bookmarkResponse.ok) {
+          const bookmarkData = await bookmarkResponse.json();
+          setIsBookmarked(bookmarkData.isBookmarked || false);
+        } else {
+          console.warn(`Error checking bookmark status (${bookmarkResponse.status}) for story ${story.id}:`, await bookmarkResponse.text());
+          setIsBookmarked(false); // Default to false on error
+        }
+
+      } catch (error) {
+        // Catch potential TypeError: Failed to fetch or other network errors
+        console.error(`Error fetching interactions for story ${story.id}:`, error);
+        setIsLiked(false);
+        setIsBookmarked(false);
+      }
+    };
+
+    checkUserInteractions();
+
+  }, [story, user]); // Dependencies: story and user
 
   useEffect(() => {
     const updateHeight = () => {
@@ -242,7 +263,7 @@ export default function StoryContainer({
   }, [readingMode, currentPage]);
 
   const toggleLike = async () => {
-    if (!story) return
+    if (!story || !story.id) return // Added check for story.id
     try {
       await handleAuthAction(async () => {
         const newIsLiked = !isLiked
@@ -276,7 +297,7 @@ export default function StoryContainer({
   }
 
   const toggleBookmark = async () => {
-    if (!story) return
+    if (!story || !story.id) return // Added check for story.id
     try {
       await handleAuthAction(async () => {
         const newIsBookmarked = !isBookmarked
@@ -310,7 +331,7 @@ export default function StoryContainer({
   }
 
   const toggleComments = () => {
-    if (!user || !story) {
+    if (!user || !story || !story.id) { // Added check for story.id
       openModal()
       return
     }
@@ -479,7 +500,7 @@ export default function StoryContainer({
               }
             >
               <div className="story-page-content h-full flex flex-col">
-                <div ref={index === currentPage ? contentRef : null} className={`story-content-wrapper lg:max-w-3xl lg:mx-auto ${isFullScreen ? 'pt-4 pb-4' : 'pt-8 pb-16'}`}> {/* Conditional padding */}
+                <div ref={index === currentPage ? contentRef : null} className={`story-content-wrapper lg:max-w-3xl lg:mx-auto pt-8 pb-16`}> {/* Consistent bottom padding */}
                   {/* Show title always in full screen, only on first page otherwise */}
                   {(index === 0 || isFullScreen) && (
                     <h2 className={`story-title text-xl mb-3 text-highlight dark:text-highlight font-bold leading-tight ${isFullScreen ? 'px-4' : ''}`}>
