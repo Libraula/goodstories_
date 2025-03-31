@@ -1,0 +1,417 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+
+    /* GoodStories Theme */
+    --paper: #f5f5f0;
+    --paper-dark: #e8e8e0;
+    --ink: #33332d;
+    --ink-light: #5a5a54;
+    --highlight: #6d4c41;
+    --highlight-light: #8d6e63;
+    --bookmark: #c19a6b;
+    --red: #d33;
+    --white: #ffffff;
+
+    /* Font sizes - reduced by 25% */
+    --font-size-small: 0.75rem; /* 12px */
+    --font-size-medium: 0.9rem; /* 14.4px */
+    --font-size-large: 1.05rem; /* 16.8px */
+    --story-font-size: var(--font-size-medium);
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+
+    /* GoodStories Dark Theme */
+    --paper: #1e1e1a;
+    --paper-dark: #2a2a25;
+    --ink: #e0e0d8;
+    --ink-light: #a0a096;
+    --highlight: #a57b6e;
+    --highlight-light: #c4a59a;
+    --bookmark: #d6b78c;
+    --red: #ff6b6b;
+    --white: #2a2a25;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-paper text-ink;
+  }
+}
+
+/* Hide scrollbars but allow scrolling */
+::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Georgia", serif;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+body {
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw; /* Ensure full width */
+  margin: 0; /* Remove default margins */
+  padding: 0; /* Remove default padding */
+}
+
+@media (min-width: 1024px) {
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #f0f0f0;
+  }
+
+  .dark body {
+    background-color: #121212;
+  }
+}
+
+/* Story feed scrolling - both directions */
+.story-feed {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain; /* Prevent overscroll */
+}
+
+.story-feed::-webkit-scrollbar {
+  display: none;
+}
+
+.story-wrapper {
+  scroll-snap-stop: always;
+}
+
+/* Story pages scrolling - both directions */
+.story-pages {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth; /* Changed to smooth for better transitions */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior: contain; /* Prevent overscroll */
+}
+
+.story-pages::-webkit-scrollbar {
+  display: none;
+}
+
+/* Optimize for touch */
+.story-page {
+  scroll-snap-stop: always; /* Force snap to stop at each page */
+}
+
+/* Responsive image sizing */
+.responsive-image {
+  max-height: 25vh;
+  width: 100%;
+  object-fit: cover;
+}
+
+@media (min-width: 768px) {
+  .responsive-image {
+    max-height: 30vh;
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-image {
+    max-height: 35vh;
+  }
+}
+
+/* Pagination container styling */
+.pagination-container {
+  transition: all 0.3s ease;
+}
+
+/* Pagination indicators */
+.pagination-container button {
+  transition: all 0.2s ease;
+}
+
+.pagination-container button.active {
+  transform: scale(1.1);
+}
+
+/* Optimize content scrolling */
+.story-content-wrapper {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding-bottom: 20px;
+}
+
+.story-content-wrapper::-webkit-scrollbar {
+  display: none;
+}
+
+/* Action icons styling */
+.action-icon {
+  transition: all 0.2s ease;
+}
+
+.action-icon:hover {
+  transform: scale(1.05);
+}
+
+/* Consistent UI elements */
+.action-icon,
+.pagination-container {
+  backdrop-filter: blur(4px);
+}
+
+/* Full screen app container */
+.app-container {
+  max-width: 100vw !important;
+  width: 100% !important;
+  height: 100vh !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+}
+
+@media (min-width: 1024px) {
+  .app-container {
+    border-radius: 0 !important;
+    margin: 0 !important;
+    max-width: 100vw !important;
+    width: 100vw !important;
+  }
+}
+
+/* Responsive story tags */
+.story-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.story-tag {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Story meta positioning */
+.story-meta {
+  margin-top: auto;
+  padding-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Smooth transitions */
+.story-feed,
+.story-pages,
+.story-page {
+  transition: transform 0.3s ease;
+}
+
+/* TipTap Editor Styles */
+.ProseMirror {
+  min-height: 300px;
+  outline: none;
+}
+
+.ProseMirror p {
+  margin-bottom: 0.75em;
+}
+
+.ProseMirror h1 {
+  font-size: 1.5em;
+  font-weight: bold;
+  margin-bottom: 0.5em;
+  color: var(--highlight);
+}
+
+.ProseMirror h2 {
+  font-size: 1.25em;
+  font-weight: bold;
+  margin-bottom: 0.5em;
+  color: var(--highlight);
+}
+
+.ProseMirror ul,
+.ProseMirror ol {
+  padding-left: 1.5em;
+  margin-bottom: 0.75em;
+}
+
+.ProseMirror li {
+  margin-bottom: 0.25em;
+}
+
+.ProseMirror blockquote {
+  border-left: 3px solid var(--highlight);
+  padding-left: 1em;
+  margin-left: 0;
+  margin-right: 0;
+  font-style: italic;
+  color: var(--ink-light);
+}
+
+.ProseMirror a {
+  color: var(--highlight);
+  text-decoration: underline;
+}
+
+.ProseMirror-focused {
+  border-color: var(--highlight);
+}
+
+.dark .ProseMirror h1,
+.dark .ProseMirror h2 {
+  color: var(--highlight-light);
+}
+
+.dark .ProseMirror blockquote {
+  border-left-color: var(--highlight-light);
+}
+
+.dark .ProseMirror a {
+  color: var(--highlight-light);
+}
+
+/* Placeholder text */
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--ink-light);
+  pointer-events: none;
+  height: 0;
+}
+
+/* AI suggestion animation */
+.ai-suggestion {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Add styles for the sidebar */
+.desktop-sidebar {
+  transition: width 0.3s ease;
+}
+
+.sidebar-nav-item {
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Ensure the content area adjusts properly */
+@media (min-width: 1024px) {
+  .app-container {
+    grid-template-columns: auto 1fr;
+  }
+}
+
+/* Full-screen story editor styles */
+.editor-body {
+  background-color: var(--paper);
+}
+
+.dark .editor-body {
+  background-color: var(--paper-dark);
+}
+
+/* Make the editor more responsive */
+@media (max-width: 640px) {
+  .editor-header {
+    padding: 0.75rem;
+  }
+
+  .editor-header h2 {
+    font-size: 1.25rem;
+  }
+
+  .editor-body {
+    padding: 0.75rem;
+  }
+}
+

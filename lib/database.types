@@ -1,0 +1,74 @@
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+
+export interface StoryPage {
+  type: "text" | "image";
+  content: string[];
+  image?: string;
+  image_alt?: string;
+}
+
+export interface StoryInsert {
+  id?: string;
+  title: string;
+  author_id: string;
+  pages: StoryPage[];
+  tags?: string[];
+  read_time?: string;
+  like_count?: number;
+  comment_count?: number;
+  bookmark_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Database {
+  public: {
+    Tables: {
+      stories: {
+        Row: any;
+        Insert: any;
+        Update: any;
+      };
+      likes: {
+        Row: any;
+        Insert: any;
+        Update: any;
+      };
+      comments: {
+        Row: any;
+        Insert: any;
+        Update: any;
+      };
+      comment_likes: {
+        Row: any;
+        Insert: any;
+        Update: any;
+      };
+      bookmarks: {
+        Row: any;
+        Insert: any;
+        Update: any;
+      };
+      follows: {
+        Row: any;
+        Insert: any;
+        Update: any;
+      };
+      profiles: {
+        Row: any;
+        Insert: any;
+        Update: any;
+      };
+    };
+    Views: {
+      [_ in never]: never;
+    };
+    Functions: {
+      [_ in never]: never;
+    };
+    Enums: {
+      [_ in never]: never;
+    };
+  };
+}
+
