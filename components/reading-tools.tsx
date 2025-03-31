@@ -79,11 +79,11 @@ export default function ReadingTools() {
         <ul className="text-sm text-ink dark:text-ink">
           <li className="mb-2 flex items-center gap-2">
             <i className="fas fa-hand-pointer text-highlight dark:text-highlight"></i>
-            <span>Double tap: Hide/show controls</span>
+            <span>Double tap: Toggle full screen</span>
           </li>
           <li className="mb-2 flex items-center gap-2">
             <i className="fas fa-expand-arrows-alt text-highlight dark:text-highlight"></i>
-            <span>Pinch: Hide/show controls</span>
+            <span>Pinch out/in: Enter/Exit full screen</span>
           </li>
           {readingMode === "page" ? (
             <>

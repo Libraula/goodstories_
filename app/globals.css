@@ -415,3 +415,13 @@ body {
   }
 }
 
+/* Hide mobile nav bars when story is full screen */
+@media (max-width: 1023px) {
+  body.story-fullscreen-active .mobile-header {
+    display: none !important; /* Use !important to ensure override */
+  }
+
+  body.story-fullscreen-active .mobile-nav {
+    display: none !important; /* Use !important to ensure override */
+  }
+}

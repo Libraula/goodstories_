@@ -1,9 +1,9 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import Image from "next/image"
-import { Heart, MessageCircle, Bookmark, Share2, Eye, EyeOff, PlusCircle } from "lucide-react"
+import { Heart, MessageCircle, Bookmark, Share2, Eye, EyeOff, PlusCircle, Maximize, Minimize, Volume2 } from "lucide-react"
 import type { Story } from "@/lib/types"
 import CommentsSection from "./comments-section"
 import { useReadingSettings } from "@/contexts/reading-settings-context"
@@ -48,9 +48,23 @@ export default function StoryContainer({
   const { user } = useAuth()
   const { openModal } = useAuthModal()
   const [isStoryLoaded, setIsStoryLoaded] = useState(false)
+  const [isFullScreen, setIsFullScreen] = useState(false) // <-- Add full screen state
 
   // Constant for transition duration in milliseconds
   const TRANSITION_DURATION = 300
+
+  // Effect to add/remove class to body for hiding nav bars in full screen
+  useEffect(() => {
+    if (isFullScreen) {
+      document.body.classList.add("story-fullscreen-active")
+    } else {
+      document.body.classList.remove("story-fullscreen-active")
+    }
+    // Cleanup function to remove class when component unmounts
+    return () => {
+      document.body.classList.remove("story-fullscreen-active")
+    }
+  }, [isFullScreen])
 
   // Effect to prevent background scroll when comments are open
   useEffect(() => {
@@ -363,6 +377,24 @@ export default function StoryContainer({
     // Navigate to author profile page
     window.location.href = `/profile/${story.author.id}`
   }
+    // Function to toggle full screen mode
+    const toggleFullScreen = useCallback(() => {
+      setIsFullScreen((prev) => !prev)
+    }, [])
+  
+    // Function to handle audio playback (placeholder)
+    const playAudio = useCallback(() => {
+      // TODO: Implement text-to-speech functionality
+      console.log("Play audio for story:", story?.id)
+      // Example: Use SpeechSynthesis API
+      // if ('speechSynthesis' in window && story?.pages) {
+      //   const utterance = new SpeechSynthesisUtterance(story.pages.map(p => p.content.join(' ')).join('\n'));
+      //   // Configure utterance properties (voice, rate, pitch) if needed
+      //   speechSynthesis.speak(utterance);
+      // } else {
+      //   alert('Text-to-speech is not supported in your browser.');
+      // }
+    }, [story])
 
   // Format count for display (e.g., 1000 -> 1K)
   const formatCount = (count: number | undefined | null): string => {
@@ -385,22 +417,35 @@ export default function StoryContainer({
       setInitialPinchDistance(getPinchDistance(e))
     }
 
+    // Double tap detection
     if (now - lastTapTime < 300) {
-      toggleSidebar()
-      e.preventDefault()
+      toggleFullScreen() // Toggle full screen on double tap
+      e.preventDefault() // Prevent zoom or other default actions
+      setLastTapTime(0) // Reset last tap time to prevent immediate re-trigger
+      return // Exit early
     }
     setLastTapTime(now)
   }
 
   const handleTouchMove = (e: React.TouchEvent) => {
+    // Pinch detection for full screen
     if (e.touches.length === 2 && initialPinchDistance !== null) {
       const currentDistance = getPinchDistance(e)
       const pinchChange = currentDistance - initialPinchDistance
-      if (Math.abs(pinchChange) > 50) {
-        toggleSidebar()
-        setInitialPinchDistance(null)
+      const pinchThreshold = 50 // Sensitivity for pinch gesture
+
+      if (pinchChange > pinchThreshold && !isFullScreen) {
+        // Pinch Out -> Enter Full Screen
+        setIsFullScreen(true)
+        setInitialPinchDistance(null) // Reset pinch distance
+        e.preventDefault()
+      } else if (pinchChange < -pinchThreshold && isFullScreen) {
+        // Pinch In -> Exit Full Screen
+        setIsFullScreen(false)
+        setInitialPinchDistance(null) // Reset pinch distance
         e.preventDefault()
       }
+      // No else needed, allow default pinch zoom if not crossing threshold or already in target state
     }
   }
 
@@ -441,14 +486,22 @@ export default function StoryContainer({
   return (
     <div
       ref={containerRef}
-      className="story-container w-full h-full relative p-0 bg-paper dark:bg-paper-dark lg:min-h-auto"
+      className="story-container w-full h-full relative p-0 bg-transparent lg:min-h-auto" // Make container transparent
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      <div className="story-content h-full w-full flex flex-col relative">
+      {/* Apply full screen styles conditionally */}
+      <div
+        className={`story-content flex flex-col relative transition-all duration-300 ease-in-out ${
+          isFullScreen
+            ? "fixed inset-0 z-[100] bg-paper dark:bg-paper-dark p-0 overflow-auto" // Full screen styles
+            : "h-full w-full bg-paper dark:bg-paper-dark" // Normal styles
+        }`}
+      >
         {/* Story header with author info - only on first page */}
-        {currentPage === 0 && (
+        {/* Hide header in full screen */}
+        {currentPage === 0 && !isFullScreen && (
           <div className="story-header px-4 py-3 flex items-center justify-between border-b border-paper-dark/20 dark:border-paper/20">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full overflow-hidden border border-paper-dark/20 dark:border-paper/20">
@@ -473,17 +526,20 @@ export default function StoryContainer({
           </div>
         )}
         {/* Story pages */}
+        {/* Adjust pages container based on full screen */}
         <div
           className={`story-pages flex-1 ${
             readingMode === "page"
               ? "flex flex-row overflow-x-auto snap-x snap-mandatory"
               : "flex flex-col overflow-y-auto snap-y snap-mandatory"
-          } h-full`}
+          } ${isFullScreen ? "h-auto" : "h-full"}`} // Allow content height in full screen
           ref={pagesContainerRef}
           style={{
             scrollbarWidth: "none",
             WebkitOverflowScrolling: "touch",
             scrollSnapType: readingMode === "page" ? "x mandatory" : "y mandatory",
+            // Ensure container takes full height in fullscreen page mode
+            height: isFullScreen && readingMode === 'page' ? '100%' : undefined,
           }}
         >
           {story.pages.map((page, index) => (
@@ -492,14 +548,24 @@ export default function StoryContainer({
               className={`story-page ${
                 readingMode === "page" ? "min-w-full snap-center" : "w-full min-h-full snap-start"
               } p-4 flex flex-col overflow-hidden`}
-              style={{
-                height: readingMode === "page" ? `${containerHeight}px` : "auto",
-              }}
+              style={
+                !isFullScreen
+                  ? {
+                      height: readingMode === "page" ? `${containerHeight}px` : "auto",
+                    }
+                  : {
+                      // In full screen, let content determine height, ensure min-height for scroll mode
+                      minHeight: readingMode === 'scroll' ? '100vh' : undefined,
+                      height: readingMode === 'page' ? '100%' : undefined, // Ensure page takes full height
+                      width: readingMode === 'page' ? '100vw' : undefined, // Ensure page takes full width
+                    }
+              }
             >
               <div className="story-page-content h-full flex flex-col justify-between">
-                <div ref={index === currentPage ? contentRef : null} className="story-content-wrapper flex-1">
-                  {index === 0 && (
-                    <h2 className="story-title text-xl mb-3 text-highlight dark:text-highlight font-bold leading-tight">
+                <div ref={index === currentPage ? contentRef : null} className={`story-content-wrapper flex-1 ${isFullScreen ? 'pt-8 pb-16' : ''}`}> {/* Add padding in full screen */}
+                  {/* Show title always in full screen, only on first page otherwise */}
+                  {(index === 0 || isFullScreen) && (
+                    <h2 className={`story-title text-xl mb-3 text-highlight dark:text-highlight font-bold leading-tight ${isFullScreen ? 'px-4' : ''}`}>
                       {story.title}
                     </h2>
                   )}
@@ -509,7 +575,8 @@ export default function StoryContainer({
                       className="story-text leading-relaxed mb-4 text-ink dark:text-ink"
                       style={{
                         fontSize: "var(--story-font-size)",
-                        maxHeight: readingMode === "page" ? `${containerHeight - 120}px` : "auto",
+                        // Remove maxHeight constraint in full screen
+                        maxHeight: !isFullScreen && readingMode === "page" ? `${containerHeight - 120}px` : "none",
                       }}
                     >
                       {page.content.map((paragraph, pIndex) => (
@@ -558,7 +625,7 @@ export default function StoryContainer({
 
       {/* Action buttons */}
       <div
-        className={`action-buttons fixed bottom-36 right-4 flex flex-col gap-3 z-30 transition-opacity duration-300 ${showActionIcons && isActive ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        className={`action-buttons fixed ${isFullScreen ? 'top-4 right-4' : 'bottom-36 right-4'} flex ${isFullScreen ? 'flex-row' : 'flex-col'} gap-3 z-[110] transition-all duration-300 ${showActionIcons && isActive ? "opacity-100" : "opacity-0 pointer-events-none"}`}
       >
         <button
           onClick={toggleLike}
@@ -605,45 +672,67 @@ export default function StoryContainer({
           <Share2 className="h-5 w-5" />
         </button>
 
+        {/* Full Screen Toggle Button */}
         <button
-          onClick={viewAuthorProfile}
-          className="action-button w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20 overflow-hidden relative"
+          onClick={toggleFullScreen}
+          className="action-button w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20"
+          aria-label={isFullScreen ? "Exit full screen" : "Enter full screen"}
         >
-          <Image
-            src={story.author.avatar || "/placeholder.svg"}
-            alt={story.author.name}
-            width={40}
-            height={40}
-            className="w-full h-full object-cover"
-          />
-          <div
-            onClick={(e) => {
-              e.stopPropagation()
-              console.log("Follow author:", story.author.name)
-            }}
-            className="absolute -right-1 -top-1 bg-highlight text-white text-xs rounded-full w-5 h-5 flex items-center justify-center cursor-pointer shadow-sm"
-          >
-            <PlusCircle className="h-3 w-3" />
-          </div>
+          {isFullScreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
         </button>
+
+        {/* Play Audio Button */}
+        <button
+          onClick={playAudio}
+          className="action-button w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20"
+          aria-label="Play story audio"
+        >
+          <Volume2 className="h-5 w-5" />
+        </button>
+
+        {/* Author Profile Button (only if not full screen) */}
+        {!isFullScreen && (
+          <button
+            onClick={viewAuthorProfile}
+            className="action-button w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20 overflow-hidden relative"
+          >
+            <Image
+              src={story.author.avatar || "/placeholder.svg"}
+              alt={story.author.name}
+              width={40}
+              height={40}
+              className="w-full h-full object-cover"
+            />
+            <div
+              onClick={(e) => {
+                e.stopPropagation()
+                console.log("Follow author:", story.author.name)
+              }}
+              className="absolute -right-1 -top-1 bg-highlight text-white text-xs rounded-full w-5 h-5 flex items-center justify-center cursor-pointer shadow-sm"
+            >
+              <PlusCircle className="h-3 w-3" />
+            </div>
+          </button>
+        )}
       </div>
 
-      {/* Eye toggle button - only visible when story is active */}
-      {isActive && (
+      {/* Eye toggle button - only visible when story is active and NOT full screen */}
+      {isActive && !isFullScreen && (
         <button
           onClick={toggleActionIcons}
           className="reading-mode-toggle fixed bottom-24 right-4 w-10 h-10 rounded-full flex items-center justify-center bg-highlight text-white border border-paper-dark/20 dark:border-paper/20 transition-all z-20 shadow-md"
+          aria-label={showActionIcons ? "Hide action icons" : "Show action icons"}
         >
           {showActionIcons ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
         </button>
       )}
 
-      {/* Page indicator - only visible when story is active */}
+      {/* Page indicator - always show at bottom-center when active */}
       {isActive && (
-        <div className="page-indicator fixed bottom-24 left-1/2 transform -translate-x-1/2 px-3 py-1 rounded-full bg-paper/80 dark:bg-paper-dark/80 text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20 text-xs shadow-md">
-          {currentPage + 1} / {story.pages.length}
-        </div>
-      )}
+         <div className={`page-indicator fixed bottom-4 left-1/2 transform -translate-x-1/2 px-3 py-1 rounded-full bg-paper/80 dark:bg-paper-dark/80 text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20 text-xs shadow-md ${isFullScreen ? 'z-[110]' : 'z-20'}`}>
+           {currentPage + 1} / {story.pages.length}
+         </div>
+       )}
       {/* Comments section - slides in from the bottom */}
       {showComments && (
         <div
