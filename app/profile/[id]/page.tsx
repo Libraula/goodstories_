@@ -8,6 +8,7 @@ import { getUserProfile, getUserStories, followUser, unfollowUser, isFollowingUs
 import { useAuth } from "@/contexts/auth-context";
 import { useAuthModal } from "@/hooks/use-auth-modal";
 import StoryCard from "@/components/story-card";
+import StoryViewer from "@/components/story-viewer"; // Import StoryViewer
 import { User, PlusCircle, MinusCircle, Loader2 } from "lucide-react";
 import type { Story } from "@/lib/types";
 
@@ -23,7 +24,8 @@ interface ProfileData {
 }
 
 export default function ProfilePage() {
-  const { id } = useParams();
+  const params = useParams();
+  const id = params?.id as string; // Explicitly get id and assert as string
   const { user } = useAuth();
   const { openModal } = useAuthModal();
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -31,19 +33,21 @@ export default function ProfilePage() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [followLoading, setFollowLoading] = useState(false);
+  const [isViewingStory, setIsViewingStory] = useState(false); // State for viewer visibility
+  const [selectedStoryIndex, setSelectedStoryIndex] = useState<number | null>(null); // State for selected story index
 
   useEffect(() => {
     const fetchProfileData = async () => {
       if (!id) return;
-      
+
       setIsLoading(true);
       try {
         const profileData = await getUserProfile(id as string);
         setProfile(profileData);
-        
+
         const userStories = await getUserStories(id as string);
         setStories(userStories);
-        
+
         if (user) {
           const followStatus = await isFollowingUser(user.id, id as string);
           setIsFollowing(followStatus);
@@ -96,6 +100,17 @@ export default function ProfilePage() {
     }
   };
 
+  const handleStoryClick = (index: number) => {
+    setSelectedStoryIndex(index);
+    setIsViewingStory(true);
+  };
+
+  const handleCloseViewer = () => {
+    setIsViewingStory(false);
+    setSelectedStoryIndex(null);
+  };
+
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -104,6 +119,18 @@ export default function ProfilePage() {
     );
   }
 
+  // If viewing a story, render the StoryViewer
+  if (isViewingStory && selectedStoryIndex !== null && stories.length > 0) {
+    return (
+      <StoryViewer
+        stories={stories}
+        initialIndex={selectedStoryIndex!} // Use non-null assertion
+        onClose={handleCloseViewer}
+      />
+    );
+  }
+
+  // Otherwise, render the profile page content
   if (!profile) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -118,6 +145,7 @@ export default function ProfilePage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* Profile Header */}
       <div className="bg-paper dark:bg-paper-dark rounded-lg shadow-md p-6 mb-8">
         <div className="flex flex-col md:flex-row items-center gap-6">
           <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-highlight">
@@ -129,15 +157,15 @@ export default function ProfilePage() {
               className="w-full h-full object-cover"
             />
           </div>
-          
+
           <div className="flex-1 text-center md:text-left">
             <h1 className="text-2xl font-bold">{profile.name}</h1>
             <p className="text-ink-light dark:text-ink-light mb-2">@{profile.username}</p>
-            
+
             {profile.bio && (
               <p className="mb-4">{profile.bio}</p>
             )}
-            
+
             <div className="flex flex-wrap gap-4 justify-center md:justify-start">
               <div className="text-center">
                 <span className="block font-bold">{profile.story_count || 0}</span>
@@ -153,7 +181,7 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-          
+
           {user && user.id !== profile.id && (
             <button
               onClick={handleFollowToggle}
@@ -176,15 +204,19 @@ export default function ProfilePage() {
           )}
         </div>
       </div>
-      
+
+      {/* Stories Section */}
       <h2 className="text-xl font-bold mb-4">Stories by {profile.name}</h2>
-      
+
       {stories.length === 0 ? (
         <p className="text-ink-light dark:text-ink-light">This author hasn't published any stories yet.</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {stories.map((story) => (
-            <StoryCard key={story.id} story={story} />
+          {stories.map((story, index) => (
+            // Wrap StoryCard in a clickable div
+            <div key={story.id} onClick={() => handleStoryClick(index)} className="cursor-pointer">
+              <StoryCard story={story} />
+            </div>
           ))}
         </div>
       )}
