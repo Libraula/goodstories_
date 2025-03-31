@@ -1,93 +1,107 @@
 import { NextResponse } from 'next/server';
-import { v4 as uuidv4 } from 'uuid';
 import { createClient, isAuthenticated } from '@/utils/supabase/server';
 
 export async function POST(request: Request) {
   try {
-    // Check if user is authenticated
-    const { isAuthenticated: userIsAuthenticated, userId, supabase } = await isAuthenticated();
-    
-    if (!userIsAuthenticated || !userId) {
-      return NextResponse.json({ error: 'Please log in to like stories', message: 'authentication_required' }, { status: 401 });
+    const { userId, supabase } = await isAuthenticated();
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
-    const requestData = await request.json().catch(() => ({}));
-    const { storyId } = requestData;
-    
-    if (!storyId) {
-      return NextResponse.json({ error: 'Story ID is required' }, { status: 400 });
+
+    const { searchParams } = new URL(request.url);
+    const commentId = searchParams.get('commentId');
+
+    if (!commentId) {
+      return NextResponse.json({ error: 'Comment ID is required' }, { status: 400 });
     }
-    
-    // Check if like already exists
-    const { data: existingLike, error: likeError } = await supabase
-      .from('likes')
+
+    // Check if the user has already liked the comment
+    const { data: existingLike, error: existingLikeError } = await supabase
+      .from('comment_likes')
       .select('*')
       .eq('user_id', userId)
-      .eq('story_id', storyId);
-    
-    if (likeError) {
-      console.error('Error checking existing like:', likeError);
-      return NextResponse.json({ error: 'Failed to check existing like' }, { status: 500 });
+      .eq('comment_id', commentId)
+      .single();
+
+    if (existingLikeError && existingLikeError.code !== 'PGRST116') { // PGRST116: no rows found
+      console.error('Error checking existing like:', existingLikeError);
+      return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
-    
-    if (existingLike && existingLike.length > 0) {
-      return NextResponse.json({ message: 'Already liked' }, { status: 200 });
+
+    if (existingLike) {
+      return NextResponse.json({ error: 'You have already liked this comment' }, { status: 400 });
     }
-    
-    // Create new like directly with Supabase
-    const { data: likeData, error: insertError } = await supabase
-      .from('likes')
-      .insert({
-        id: uuidv4(),
-        user_id: userId,
-        story_id: storyId,
-        created_at: new Date().toISOString()
-      })
-      .select();
-    
+
+    // Insert the like
+    const { error: insertError } = await supabase
+      .from('comment_likes')
+      .insert({ user_id: userId, comment_id: commentId });
+
     if (insertError) {
-      console.error('Error creating like:', insertError);
-      return NextResponse.json({ error: 'Failed to like story' }, { status: 500 });
+      console.error('Error liking comment:', insertError);
+      return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
-    
-    return NextResponse.json({ message: 'Story liked successfully', data: likeData }, { status: 201 });
+
+    // Increment the like count on the comments table
+    const { error: incrementError } = await supabase
+      .from('comments')
+      .update({ likes_count: () => 'likes_count + 1' })
+      .eq('id', commentId);
+
+    if (incrementError) {
+      console.error('Error incrementing like count:', incrementError);
+      return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+
+    return NextResponse.json({ message: 'Comment liked successfully' });
   } catch (error) {
-    console.error('Error in likes POST endpoint:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error in POST /api/likes:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
 export async function DELETE(request: Request) {
   try {
-    // Check if user is authenticated
-    const { isAuthenticated: userIsAuthenticated, userId, supabase } = await isAuthenticated();
-    
-    if (!userIsAuthenticated || !userId) {
-      return NextResponse.json({ error: 'Please log in to unlike stories', message: 'authentication_required' }, { status: 401 });
+    const { userId, supabase } = await isAuthenticated();
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     const { searchParams } = new URL(request.url);
-    const storyId = searchParams.get('storyId');
-    
-    if (!storyId) {
-      return NextResponse.json({ error: 'Story ID is required' }, { status: 400 });
+    const commentId = searchParams.get('commentId');
+
+    if (!commentId) {
+      return NextResponse.json({ error: 'Comment ID is required' }, { status: 400 });
     }
-    
-    // Delete the like directly with Supabase
+
+    // Delete the like
     const { error: deleteError } = await supabase
-      .from('likes')
+      .from('comment_likes')
       .delete()
       .eq('user_id', userId)
-      .eq('story_id', storyId);
-    
+      .eq('comment_id', commentId);
+
     if (deleteError) {
-      console.error('Error deleting like:', deleteError);
-      return NextResponse.json({ error: 'Failed to unlike story' }, { status: 500 });
+      console.error('Error unliking comment:', deleteError);
+      return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
-    
-    return NextResponse.json({ message: 'Story unliked successfully' }, { status: 200 });
+
+    // Decrement the like count on the comments table
+    const { error: decrementError } = await supabase
+      .from('comments')
+      .update({ likes_count: () => 'likes_count - 1' })
+      .eq('id', commentId);
+
+    if (decrementError) {
+      console.error('Error decrementing like count:', decrementError);
+      return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+
+    return NextResponse.json({ message: 'Comment unliked successfully' });
   } catch (error) {
-    console.error('Error in likes DELETE endpoint:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error in DELETE /api/likes:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

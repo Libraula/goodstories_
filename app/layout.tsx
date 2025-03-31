@@ -1,6 +1,6 @@
 import type React from "react"
 import "./globals.css"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next" // Import Viewport
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ReadingSettingsProvider } from "@/contexts/reading-settings-context"
@@ -15,8 +15,18 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "GoodStories - Short Stories in a TikTok Format",
   description: "Read short stories in a TikTok-style format",
-  viewport: "width=device-width, initial-scale=1.0",
+  // viewport property removed from here
   generator: 'v0.dev'
+}
+
+// Add dedicated viewport export
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#1a1a1a' },
+  ],
 }
 
 export default function RootLayout({
@@ -28,9 +38,8 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-        <meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)" />
+        {/* Removed meta viewport tag */}
+        {/* Removed meta theme-color tags (handled by viewport export) */}
       </head>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>

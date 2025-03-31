@@ -6,16 +6,25 @@ export async function middleware(request: NextRequest) {
     const res = NextResponse.next();
     const supabase = createMiddlewareClient({ req: request, res });
     
-    // Refresh session if it exists
+    // Refresh session if it exists.
+    // createMiddlewareClient automatically refreshes the session cookie
+    // when `getSession` is called.
     const {
       data: { session },
+      error: sessionError, // Capture potential errors from getSession
     } = await supabase.auth.getSession();
 
-    // If there's a session, refresh it to keep the user logged in
-    if (session) {
-      await supabase.auth.refreshSession();
+    // Log the result of getSession
+    if (sessionError) {
+      console.error('Middleware: Error getting session:', sessionError);
+    } else if (session) {
+      console.log('Middleware: Session found and potentially refreshed:', session.user.id);
+    } else {
+      console.log('Middleware: No active session found.');
     }
 
+    // The response object (`res`) has been potentially modified by `getSession`
+    // to include the updated session cookie if necessary.
     return res;
   } catch (error) {
     console.error("Middleware error:", error);

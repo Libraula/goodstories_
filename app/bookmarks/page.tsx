@@ -26,6 +26,7 @@ export default function BookmarksPage() {
       setIsLoading(true);
       try {
         const bookmarkedStories = await getUserBookmarks(user.id);
+        console.log("Fetched bookmarked stories:", bookmarkedStories); // Roo Debug Log
         setBookmarks(bookmarkedStories);
       } catch (error) {
         console.error("Error fetching bookmarks:", error);

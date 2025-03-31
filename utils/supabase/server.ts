@@ -10,11 +10,13 @@ export const createClient = async () => {
     {
       cookies: {
         async get(name: string) {
-          return (await cookieStore.get(name))?.value;
+          // Standard implementation: just return the cookie value
+          return cookieStore.get(name)?.value;
         },
         async set(name: string, value: string, options: any) {
           try {
             // Ensure cookies are properly set with secure attributes
+            // Remove the hardcoded domain attribute
             await cookieStore.set({
               name,
               value,
@@ -23,7 +25,8 @@ export const createClient = async () => {
               httpOnly: true,
               sameSite: 'lax',
               secure: process.env.NODE_ENV === 'production',
-              maxAge: 60 * 60 * 24 * 7, // 1 week
+              // domain: 'localhost', // REMOVED: Let browser handle domain based on request hostname
+              // maxAge is typically handled by Supabase options passed in `options`
             });
           } catch (error) {
             // This can happen when cookies are manipulated by server actions or middleware
@@ -55,6 +58,15 @@ export const createClient = async () => {
 // Helper function to check if a user is authenticated
 export async function isAuthenticated() {
   const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  return { isAuthenticated: !!session, userId: session?.user?.id, supabase };
+  // Use getUser() to verify the session server-side
+  const { data: { user }, error } = await supabase.auth.getUser();
+  
+  if (error) {
+    // Log the error but potentially still return unauthenticated status
+    console.error('Error fetching user with getUser():', error);
+    return { isAuthenticated: false, userId: null, supabase };
+  }
+
+  // Return authentication status based on verified user object
+  return { isAuthenticated: !!user, userId: user?.id, supabase };
 }

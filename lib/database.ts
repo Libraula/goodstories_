@@ -31,7 +31,7 @@ interface StoryRow {
 export type StoryUpdate = Database['public']['Tables']['stories']['Update']
 
 // Comment types
-export type Comment = Database['public']['Tables']['comments']['Row']
+export type Comment = Database['public']['Tables']['comments']['Row'] & { likes_count: number };
 export type CommentInsert = Database['public']['Tables']['comments']['Insert']
 
 // Profile types
@@ -116,9 +116,15 @@ export async function ensureProfile(userId: string, username?: string, name?: st
       console.warn('Auth session missing when ensuring profile, continuing with defaults');
     }
 
-    const defaultUsername = username || user?.email?.split('@')[0] || `user_${userId.substring(0, 8)}`;
-    const defaultName = name || defaultUsername;
-    const defaultAvatarUrl = avatarUrl || '/placeholder.svg';
+    // Extract details from user metadata if available
+    const metaName = user?.user_metadata?.full_name;
+    const metaAvatar = user?.user_metadata?.avatar_url;
+    const emailUsername = user?.email?.split('@')[0];
+
+    // Determine defaults, prioritizing function parameters, then metadata, then generated values
+    const defaultUsername = username || emailUsername || `user_${userId.substring(0, 8)}`;
+    const defaultName = name || metaName || defaultUsername; // Use metadata name if available
+    const defaultAvatarUrl = avatarUrl || metaAvatar || '/placeholder.svg'; // Use metadata avatar if available
 
     const { data: newProfile, error: insertError } = await supabase
       .from('profiles')

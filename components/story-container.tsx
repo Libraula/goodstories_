@@ -53,6 +53,38 @@ export default function StoryContainer({
   // Constant for transition duration in milliseconds
   const TRANSITION_DURATION = 300
 
+  // Effect to prevent background scroll when comments are open
+  useEffect(() => {
+    const storyFeedElement = document.querySelector('.story-feed'); // Or a more specific parent if needed
+
+    const preventScroll = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    if (showComments && storyFeedElement) {
+      // Disable scroll on the underlying feed
+      storyFeedElement.addEventListener('wheel', preventScroll, { passive: false });
+      storyFeedElement.addEventListener('touchmove', preventScroll, { passive: false });
+      // Optionally add a class to body or container if needed for visual cues or further styling
+      // document.body.classList.add('comments-open');
+    } else if (storyFeedElement) {
+      // Re-enable scroll
+      storyFeedElement.removeEventListener('wheel', preventScroll);
+      storyFeedElement.removeEventListener('touchmove', preventScroll);
+      // document.body.classList.remove('comments-open');
+    }
+
+    // Cleanup function
+    return () => {
+      if (storyFeedElement) {
+        storyFeedElement.removeEventListener('wheel', preventScroll);
+        storyFeedElement.removeEventListener('touchmove', preventScroll);
+        // document.body.classList.remove('comments-open'); // Ensure cleanup on unmount
+      }
+    };
+  }, [showComments]); // Re-run effect when showComments changes
+
   if (!story) {
     return <div className="flex items-center justify-center w-full h-full">
       <div className="text-center">

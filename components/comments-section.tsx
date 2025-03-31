@@ -2,20 +2,25 @@
 
 import { useState, useEffect, useRef } from "react"
 import Image from "next/image"
-import { Send, X, Heart, MessageCircle, Trash2, Edit, Check } from "lucide-react"
+import Link from "next/link" // Import Link
+import { Heart } from "lucide-react" // Add Heart import back
+import { Send, X, MessageCircle, Trash2, Edit, Check } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useAuthModal } from "@/hooks/use-auth-modal"
+import { useToast } from "@/hooks/use-toast" // Import useToast
 import { formatTimeAgo } from "@/lib/utils"
 import { handleAuthAction } from "@/lib/supabase"
 
 // Comment type definition
 type Comment = {
   id: string
-  user_id: string
+  author_id: string // Changed from user_id to author_id
   story_id: string
   content: string
   created_at: string
   updated_at?: string
+  likes_count: number | null // Add likes_count back
+  user_has_liked: boolean // Add user_has_liked back
   profiles: {
     id: string
     name: string
@@ -35,13 +40,12 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
   const [newComment, setNewComment] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
-  const [editContent, setEditContent] = useState("")
   const commentInputRef = useRef<HTMLTextAreaElement>(null)
-  const editInputRef = useRef<HTMLTextAreaElement>(null)
   const commentsContainerRef = useRef<HTMLDivElement>(null)
   const { user } = useAuth()
   const { openModal } = useAuthModal()
+  const { toast } = useToast() // Add toast for feedback
+  const [optimisticLikes, setOptimisticLikes] = useState<{ [commentId: string]: { liked: boolean; count: number } }>({});
 
   // Fetch comments when component mounts
   useEffect(() => {
@@ -54,13 +58,6 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
       commentInputRef.current.focus()
     }
   }, [])
-
-  // Focus edit input when editing a comment
-  useEffect(() => {
-    if (editingCommentId && editInputRef.current) {
-      editInputRef.current.focus()
-    }
-  }, [editingCommentId])
 
   // Fetch comments from the API
   const fetchComments = async () => {
@@ -93,20 +90,6 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
     }
   }
 
-  // Handle edit input change
-  const handleEditChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setEditContent(e.target.value)
-
-    // Auto-resize the textarea
-    if (editInputRef.current) {
-      editInputRef.current.style.height = "auto" // Reset height
-      editInputRef.current.style.height = `${Math.min(
-        editInputRef.current.scrollHeight,
-        200
-      )}px` // Set new height with max limit
-    }
-  }
-
   // Handle comment submission
   const handleCommentSubmit = async () => {
     if (!newComment.trim()) return;
@@ -131,7 +114,7 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
           if (!response.ok) {
             throw new Error('Failed to post comment');
           }
-          
+
           const { data } = await response.json();
           setComments([data, ...comments]);
           setNewComment("");
@@ -156,89 +139,6 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
     }
   };
 
-  // Start editing a comment
-  const startEditComment = (comment: Comment) => {
-    setEditingCommentId(comment.id)
-    setEditContent(comment.content)
-  }
-
-  // Cancel editing a comment
-  const cancelEditComment = () => {
-    setEditingCommentId(null)
-    setEditContent("")
-  }
-
-  // Save edited comment
-  const saveEditedComment = async () => {
-    if (!editingCommentId || !editContent.trim()) return;
-
-    try {
-      await handleAuthAction(async () => {
-        try {
-          const response = await fetch('/api/comments', {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              commentId: editingCommentId,
-              content: editContent.trim(),
-            }),
-            credentials: 'include', // Include cookies for authentication
-          });
-
-          if (!response.ok) {
-            throw new Error('Failed to update comment');
-          }
-          
-          const { data } = await response.json();
-          
-          // Update the comment in the local state
-          setComments(comments.map(comment => 
-            comment.id === editingCommentId 
-              ? { ...comment, content: data.content, updated_at: data.updated_at } 
-              : comment
-          ));
-          
-          // Exit edit mode
-          setEditingCommentId(null);
-          setEditContent("");
-        } catch (error) {
-          console.error('Error updating comment:', error);
-        }
-      }, openModal);
-    } catch (error) {
-      console.error('Error in edit comment action:', error);
-    }
-  };
-
-  // Delete a comment
-  const deleteComment = async (commentId: string) => {
-    if (!window.confirm('Are you sure you want to delete this comment?')) return;
-
-    try {
-      await handleAuthAction(async () => {
-        try {
-          const response = await fetch(`/api/comments?commentId=${commentId}`, {
-            method: 'DELETE',
-            credentials: 'include', // Include cookies for authentication
-          });
-
-          if (!response.ok) {
-            throw new Error('Failed to delete comment');
-          }
-          
-          // Remove the comment from the local state
-          setComments(comments.filter(comment => comment.id !== commentId));
-        } catch (error) {
-          console.error('Error deleting comment:', error);
-        }
-      }, openModal);
-    } catch (error) {
-      console.error('Error in delete comment action:', error);
-    }
-  };
-
   // Handle keyboard shortcuts for comment submission
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Submit on Enter (without shift for new lines)
@@ -248,19 +148,70 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
     }
   }
 
-  // Handle keyboard shortcuts for comment editing
-  const handleEditKeyDown = (e: React.KeyboardEvent) => {
-    // Save on Enter (without shift for new lines)
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      saveEditedComment()
-    }
-    // Cancel on Escape
-    else if (e.key === "Escape") {
-      e.preventDefault()
-      cancelEditComment()
-    }
-  }
+  // Handle liking/unliking a comment
+  const handleLikeComment = async (commentId: string, currentLiked: boolean, currentLikesCount: number) => {
+    await handleAuthAction(async () => {
+      const originalComments = [...comments]; // Store original state for rollback
+      const originalOptimisticState = { ...optimisticLikes };
+
+      // Optimistic UI update
+      const newLiked = !currentLiked;
+      const newLikesCount = currentLiked ? currentLikesCount - 1 : currentLikesCount + 1;
+
+      setOptimisticLikes(prev => ({
+        ...prev,
+        [commentId]: { liked: newLiked, count: newLikesCount }
+      }));
+
+      // Update the main comments state optimistically as well for immediate visual feedback
+      setComments(prevComments =>
+        prevComments.map(comment =>
+          comment.id === commentId
+            ? { ...comment, user_has_liked: newLiked, likes_count: newLikesCount }
+            : comment
+        )
+      );
+
+      try {
+        const method = newLiked ? 'POST' : 'DELETE';
+        const url = newLiked
+          ? '/api/comments/likes'
+          : `/api/comments/likes?commentId=${commentId}`;
+        const body = newLiked ? JSON.stringify({ commentId }) : undefined;
+
+        const response = await fetch(url, {
+          method: method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: body,
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Failed to ${newLiked ? 'like' : 'unlike'} comment`);
+        }
+
+        // Success - API call confirmed the optimistic update
+        // Optionally refetch comments to ensure consistency, or rely on optimistic state
+        // fetchComments(); // Uncomment if strict consistency is needed
+        console.log(`Comment ${newLiked ? 'liked' : 'unliked'} successfully.`);
+
+      } catch (error: any) {
+        console.error('Error liking/unliking comment:', error);
+        toast({
+          title: "Error",
+          description: error.message || "Could not update like status.",
+          variant: "destructive",
+        });
+
+        // Rollback optimistic update on error
+        setComments(originalComments);
+        setOptimisticLikes(originalOptimisticState);
+      }
+    }, openModal);
+  };
 
   return (
     <div className="comments-section flex flex-col h-full max-h-[80vh]">
@@ -294,73 +245,63 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
             <p className="text-sm">Be the first to share your thoughts!</p>
           </div>
         ) : (
-          comments.map((comment) => (
+          comments.map((comment) => {
+            // Roo Debug Log: Check user ID and comment author ID
+            console.log(`Comment ID: ${comment.id}, User ID: ${user?.id}, Comment Author ID: ${comment.author_id}, Show Delete: ${user?.id === comment.author_id}`);
+            return (
             <div key={comment.id} className="comment-item animate-fadeIn">
               <div className="comment-header flex items-start justify-between mb-2">
                 <div className="flex items-center">
-                  <Image
-                    src={comment.profiles.avatar_url || "/placeholder.svg"}
-                    alt={comment.profiles.name || comment.profiles.username}
-                    width={40}
-                    height={40}
-                    className="rounded-full mr-3"
-                  />
+                  <Link href={`/profile/${comment.author_id}`} passHref>
+                    <Image
+                      src={comment.profiles.avatar_url || "/placeholder.svg"}
+                      alt={comment.profiles.name || comment.profiles.username}
+                      width={40}
+                      height={40}
+                      className="rounded-full mr-3 cursor-pointer hover:opacity-80 transition-opacity"
+                    />
+                  </Link>
                   <div>
                     <div className="font-medium">{comment.profiles.name || comment.profiles.username}</div>
                     <div className="text-xs text-ink-light dark:text-ink-light">{formatTimeAgo(comment.created_at)}</div>
                   </div>
                 </div>
-                {user?.id === comment.user_id && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => startEditComment(comment)}
-                      className="text-ink-light dark:text-ink-light hover:text-highlight dark:hover:text-highlight"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => deleteComment(comment.id)}
-                      className="text-ink-light dark:text-ink-light hover:text-red-500 dark:hover:text-red-500"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                {/* Delete button and conditional logic removed */}
+              </div>
+              {/* Edit textarea block removed */}
+              <div className="comment-text text-sm bg-paper-light dark:bg-paper-dark/50 p-3 rounded-lg">
+                {comment.content}
+                {comment.updated_at && comment.updated_at !== comment.created_at && (
+                  <span className="text-xs text-ink-light dark:text-ink-light ml-2 italic">(edited)</span>
                 )}
               </div>
-              {editingCommentId === comment.id ? (
-                <div className="edit-comment-container relative">
-                  <textarea
-                    ref={editInputRef}
-                    value={editContent}
-                    onChange={handleEditChange}
-                    onKeyDown={handleEditKeyDown}
-                    className="w-full border border-border dark:border-border rounded-lg p-3 pr-12 resize-none bg-white dark:bg-paper-dark text-sm min-h-[80px] focus:ring-2 focus:ring-highlight/30 focus:border-highlight dark:focus:border-highlight"
-                  />
-                  <div className="absolute right-2 bottom-2 flex gap-2">
-                    <button
-                      onClick={saveEditedComment}
-                      className="p-1 rounded-full bg-highlight text-white"
-                    >
-                      <Check className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={cancelEditComment}
-                      className="p-1 rounded-full bg-paper-light dark:bg-paper-dark/50 text-ink dark:text-ink-light"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="comment-text text-sm bg-paper-light dark:bg-paper-dark/50 p-3 rounded-lg">
-                  {comment.content}
-                  {comment.updated_at && comment.updated_at !== comment.created_at && (
-                    <span className="text-xs text-ink-light dark:text-ink-light ml-2 italic">(edited)</span>
+              {/* Like button and count */}
+              <div className="comment-actions flex items-center mt-2">
+                <button
+                  onClick={() => handleLikeComment(
+                    comment.id,
+                    optimisticLikes[comment.id]?.liked ?? comment.user_has_liked,
+                    optimisticLikes[comment.id]?.count ?? comment.likes_count ?? 0
                   )}
-                </div>
-              )}
+                  className={`flex items-center text-xs mr-4 transition-colors duration-150 ${
+                    (optimisticLikes[comment.id]?.liked ?? comment.user_has_liked ?? false)
+                      ? 'text-red-500 hover:text-red-600'
+                      : 'text-ink-light dark:text-ink-light hover:text-red-500'
+                  }`}
+                  aria-label={ (optimisticLikes[comment.id]?.liked ?? comment.user_has_liked ?? false) ? 'Unlike comment' : 'Like comment'}
+                >
+                  <Heart
+                    className={`w-4 h-4 mr-1 ${
+                      (optimisticLikes[comment.id]?.liked ?? comment.user_has_liked ?? false) ? 'fill-current' : ''
+                    }`}
+                  />
+                  <span>{optimisticLikes[comment.id]?.count ?? comment.likes_count ?? 0}</span>
+                </button>
+                {/* Add other actions like reply here if needed */}
+              </div>
             </div>
-          ))
+            ); // End of return statement
+          }) // End block body
         )}
       </div>
 
