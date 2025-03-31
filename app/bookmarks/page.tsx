@@ -6,7 +6,7 @@ import { getUserBookmarks } from "@/lib/database";
 import { useAuth } from "@/contexts/auth-context";
 import { useAuthModal } from "@/hooks/use-auth-modal";
 import StoryCard from "@/components/story-card";
-import { Loader2, BookmarkIcon } from "lucide-react";
+import { Loader2, BookmarkIcon, ArrowLeft } from "lucide-react"; // Import ArrowLeft
 import type { Story } from "@/lib/types";
 
 export default function BookmarksPage() {
@@ -55,9 +55,18 @@ export default function BookmarksPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex items-center gap-2 mb-6">
-        <BookmarkIcon className="h-6 w-6 text-highlight" />
-        <h1 className="text-2xl font-bold">Your Bookmarks</h1>
+      <div className="flex items-center gap-4 mb-6"> {/* Increased gap */}
+        <button
+          onClick={() => router.push('/')}
+          className="p-1 rounded-full hover:bg-paper-light dark:hover:bg-paper-dark transition-colors"
+          aria-label="Back to feed"
+        >
+          <ArrowLeft className="h-6 w-6 text-ink dark:text-ink-light" />
+        </button>
+        <div className="flex items-center gap-2"> {/* Group icon and title */}
+          <BookmarkIcon className="h-6 w-6 text-highlight" />
+          <h1 className="text-2xl font-bold">Your Bookmarks</h1>
+        </div>
       </div>
       
       {bookmarks.length === 0 ? (

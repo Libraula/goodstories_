@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-
+import Link from "next/link" // Import Link
 import { useState, useEffect, useRef } from "react"
 import { Search, BookmarkIcon, Home, Compass, PlusCircle, Bell, User } from "lucide-react"
 import StoryContainer from "./story-container"
@@ -353,7 +353,9 @@ export default function StoryFeed() {
         <div className="app-title text-2xl font-bold text-highlight dark:text-highlight tracking-wide">GoodStories</div>
         <div className="header-icons flex items-center gap-4">
           <Search className="w-6 h-6 text-ink dark:text-ink-light cursor-pointer" />
-          <BookmarkIcon className="w-6 h-6 text-ink dark:text-ink-light cursor-pointer" />
+          <Link href="/bookmarks" passHref>
+            <BookmarkIcon className="w-6 h-6 text-ink dark:text-ink-light cursor-pointer" />
+          </Link>
           <ThemeToggle />
           {user && (
             <div
