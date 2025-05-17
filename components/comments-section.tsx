@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Heart, Loader2 } from "lucide-react"
+import { Heart } from "lucide-react"
 import { Send, X, MessageCircle } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useAuthModal } from "@/hooks/use-auth-modal"
@@ -263,9 +263,10 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
       <div ref={commentsContainerRef} className="comments-list flex-1 overflow-y-auto p-4 space-y-6">
         {isLoading ? (
           <div className="text-center py-8 text-ink-light dark:text-ink-light">
-            <div className="flex flex-col items-center">
-              <Loader2 className="h-12 w-12 animate-spin text-highlight mb-3" />
-              <p className="text-lg font-medium">Loading comments...</p>
+            <div className="animate-pulse flex flex-col items-center">
+              <div className="w-12 h-12 bg-paper-light dark:bg-paper-dark/50 rounded-full mb-3"></div>
+              <div className="h-4 bg-paper-light dark:bg-paper-dark/50 rounded w-24 mb-2"></div>
+              <div className="h-3 bg-paper-light dark:bg-paper-dark/50 rounded w-16"></div>
             </div>
           </div>
         ) : !comments || comments.length === 0 ? (
@@ -363,10 +364,10 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
             <button
               onClick={handleCommentSubmit}
               disabled={!newComment.trim() || isSubmitting}
-              className="absolute right-3 bottom-3 bg-highlight text-white p-2 rounded-full disabled:bg-highlight/50 disabled:text-white/70 transition-colors"
+              className={`absolute right-3 bottom-3 bg-highlight text-white p-2 rounded-full disabled:bg-highlight/50 disabled:text-white/70 transition-colors ${isSubmitting ? "animate-pulse" : ""}`}
               aria-label="Send comment"
             >
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              <Send className={`w-4 h-4 ${isSubmitting ? "animate-spin" : ""}`} />
             </button>
           </div>
         </div>
