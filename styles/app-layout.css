@@ -1,0 +1,6 @@
+/* Hide app header on desktop */
+@media (min-width: 1024px) {
+  .app-header {
+    display: none !important;
+  }
+}
