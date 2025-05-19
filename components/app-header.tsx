@@ -5,25 +5,28 @@ import { usePathname } from "next/navigation"
 import { ThemeToggle } from "./theme-toggle"
 import { useAuth } from "@/contexts/auth-context"
 import { useAuthModal } from "@/hooks/use-auth-modal"
+import { Bookmark } from "lucide-react"
 
 export function AppHeader() {
   const pathname = usePathname()
   const { user } = useAuth()
   const { openModal } = useAuthModal()
 
-  // Check if we're on a page where we want to hide the header on desktop
-  const hideOnDesktop = pathname === "/" || pathname.startsWith("/profile") || pathname.startsWith("/bookmarks")
-
   return (
     <header
-      className={`app-header fixed top-0 w-full py-4 px-4 flex items-center bg-paper dark:bg-paper-dark z-[100] border-b border-paper-dark/20 dark:border-paper/20 lg:static lg:col-start-2 lg:col-end-3 lg:pr-6 ${hideOnDesktop ? "lg:hidden" : ""}`}
+      className={`sticky top-0 w-full py-3 px-4 flex items-center justify-between bg-paper/80 dark:bg-paper-dark/80 backdrop-blur-sm z-40 border-b border-border`}
     >
       <div className="flex-1">
-        <Link href="/" className="text-xl font-bold text-highlight dark:text-highlight">
+        <Link href="/" className="text-xl font-bold text-highlight hover:text-highlight/90 transition-colors">
           GoodStories
         </Link>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 md:gap-4">
+        <Link href="/bookmarks" passHref legacyBehavior>
+          <a className="p-2 rounded-full hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors" aria-label="My Bookmarks">
+            <Bookmark size={20} className="text-ink dark:text-ink-light" />
+          </a>
+        </Link>
         <ThemeToggle />
         {!user && (
           <button

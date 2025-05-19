@@ -1,29 +1,30 @@
 import type React from "react"
 import "./globals.css"
-import type { Metadata, Viewport } from "next" // Import Viewport
+import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ReadingSettingsProvider } from "@/contexts/reading-settings-context"
 import { AuthProvider } from "@/contexts/auth-context"
-import { ToastProvider } from "@/contexts/toast-context" // Add this import
+import { ToastProvider } from "@/contexts/toast-context"
+import ClientOnly from "@/components/ClientOnly"
 
-// Load fonts
 const inter = Inter({
   subsets: ["latin"],
   display: "swap",
+  variable: "--font-inter",
 })
 
 export const metadata: Metadata = {
   title: "GoodStories - Short Stories in a TikTok Format",
   description: "Read short stories in a TikTok-style format",
-  // viewport property removed from here
   generator: "v0.dev",
 }
 
-// Add dedicated viewport export
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
     { media: "(prefers-color-scheme: dark)", color: "#1a1a1a" },
@@ -36,18 +37,20 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={inter.variable}>
       <head>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-        {/* Removed meta viewport tag */}
-        {/* Removed meta theme-color tags (handled by viewport export) */}
       </head>
-      <body className={inter.className}>
+      <body className={`${inter.className} antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <AuthProvider>
             <ReadingSettingsProvider>
               <ToastProvider>
-                <div className="app-container">{children}</div>
+                <ClientOnly>
+                  <div className="app-container">
+                    {children}
+                  </div>
+                </ClientOnly>
               </ToastProvider>
             </ReadingSettingsProvider>
           </AuthProvider>

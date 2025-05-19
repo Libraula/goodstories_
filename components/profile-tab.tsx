@@ -11,7 +11,7 @@ import type { Story } from "@/lib/types" // Import Story type
 import StoryCard from "./story-card" // Import StoryCard component
 import { useRouter } from "next/navigation" // Import useRouter
 
-export default function ProfileTab({ isMobile }: { isMobile: boolean }) {
+export default function ProfileTab() {
   const { user, signOut } = useAuth()
   const { openModal } = useAuthModal()
   const [userStories, setUserStories] = useState<Story[]>([])

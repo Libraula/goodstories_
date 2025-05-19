@@ -5,7 +5,7 @@ export interface Author {
 }
 
 export interface StoryPage {
-  type: "text" | "image"
+  type: "text" | "image" | "meta"
   content: string[]
   image?: string
   image_alt?: string
@@ -31,6 +31,9 @@ export interface Story {
   updated_at: string
   audio_url?: string
   audio_voice?: string
+  description?: string
+  sound_title?: string
+  cover_image_url?: string
 }
 
 // Database row types
@@ -48,6 +51,9 @@ export interface StoryRow {
   updated_at: string
   audio_url?: string
   audio_voice?: string
+  description?: string
+  sound_title?: string
+  cover_image_url?: string
   profiles?: {
     id: string
     name?: string

@@ -3,14 +3,12 @@
 import type React from "react"
 import Link from "next/link" // Import Link
 import { useState, useEffect, useRef } from "react"
-import { Search, BookmarkIcon, Home, Compass, PlusCircle, Bell, User } from "lucide-react"
+import { Home, Compass, PlusCircle, Bell, User } from "lucide-react"
 import StoryContainer from "./story-container"
 import DiscoverTab from "./discover-tab"
 import CreateTab from "./create-tab"
 import NotificationsTab from "./notifications-tab"
 import ProfileTab from "./profile-tab"
-import { useTheme } from "next-themes"
-import { ThemeToggle } from "./theme-toggle"
 import { useReadingSettings } from "@/contexts/reading-settings-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useAuthModal } from "@/hooks/use-auth-modal"
@@ -19,8 +17,8 @@ import Image from "next/image"
 import { getStories } from "@/lib/database"
 import type { Story } from "@/lib/types"
 import { useRouter } from "next/navigation"
-// Add the import for SidebarNavItem at the top of the file
-import SidebarNavItem from "./sidebar-nav-item"
+import { AppHeader } from "./app-header"
+import DesktopSideNav from "./desktop-side-nav"
 
 // At the top of the file, after the imports
 // Replace the current useAuth line with this safer implementation
@@ -43,52 +41,30 @@ const useAuthSafe = () => {
 export default function StoryFeed() {
   const [activeTab, setActiveTab] = useState("homeTab")
   const storyFeedRef = useRef<HTMLDivElement>(null)
-  const [isMobile, setIsMobile] = useState(true)
-  const [showSidebar, setShowSidebar] = useState(false)
-  const { theme } = useTheme()
   const [activeStoryIndex, setActiveStoryIndex] = useState(0)
-  const { readingMode } = useReadingSettings()
-  const [touchStartX, setTouchStartX] = useState(0)
-  const [touchStartY, setTouchStartY] = useState(0)
-  const [isScrolling, setIsScrolling] = useState(false)
-  const [lastScrollTime, setLastScrollTime] = useState(0)
-  const [lastScrollPosition, setLastScrollPosition] = useState(0)
-  const [scrollDirection, setScrollDirection] = useState<"none" | "horizontal" | "vertical">("none")
+  const { readingMode, setReadingMode } = useReadingSettings()
   const [isTransitioning, setIsTransitioning] = useState(false)
-  // Then in the StoryFeed component, replace:
-  // const { user } = useAuth()
-  // with:
   const { user } = useAuthSafe()
   const { isOpen: isLoginModalOpen, openModal, closeModal } = useAuthModal()
   const [loginMessage, setLoginMessage] = useState<string>("")
   const [requestedTab, setRequestedTab] = useState<string | null>(null)
-  const userAvatarUrl = user?.user_metadata?.avatar_url || "/placeholder.svg"
-  const userDisplayName = user?.user_metadata?.full_name || "User"
   const [stories, setStories] = useState<Story[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  // Make sure the router is initialized
   const router = useRouter()
 
-  // Add a new state for tracking sidebar collapse state
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-
-  // Add a function to toggle sidebar collapse state
-  const toggleSidebar = () => {
-    setIsSidebarCollapsed(!isSidebarCollapsed)
-  }
+  // Ensure readingMode is set to 'page' (vertical) for TikTok style feed
+  useEffect(() => {
+    if (readingMode !== 'page') {
+      setReadingMode('page')
+    }
+  }, [readingMode, setReadingMode])
 
   useEffect(() => {
     const fetchStories = async () => {
       setIsLoading(true)
       try {
         const fetchedStories = await getStories(20, 0)
-        if (fetchedStories && fetchedStories.length > 0) {
-          // Explicitly cast the fetched stories to ensure TypeScript recognizes them as Story[]
-          setStories(fetchedStories as Story[])
-        } else {
-          console.warn("No stories found or empty array returned")
-          setStories([])
-        }
+        setStories(fetchedStories ? (fetchedStories as Story[]) : [])
       } catch (error) {
         console.error("Error fetching stories:", error)
         setStories([])
@@ -96,217 +72,135 @@ export default function StoryFeed() {
         setIsLoading(false)
       }
     }
-
-    fetchStories()
-  }, [])
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 1024)
+    if (activeTab === "homeTab") { // Only fetch stories for home tab initially
+      fetchStories()
     }
+  }, [activeTab])
 
-    handleResize()
-    window.addEventListener("resize", handleResize)
-    return () => window.removeEventListener("resize", handleResize)
-  }, [])
-
-  // Function to navigate to a specific story with smooth scrolling
   const navigateToStory = (index: number) => {
     if (!storyFeedRef.current || index < 0 || index >= stories.length || isTransitioning) return
-
     setIsTransitioning(true)
-
-    if (readingMode === "page") {
-      // In page mode, scroll vertically
-      const storyHeight = storyFeedRef.current.clientHeight
-      storyFeedRef.current.scrollTo({
-        top: storyHeight * index,
-        behavior: "smooth",
-      })
-    } else {
-      // In scroll mode, scroll horizontally
-      const storyWidth = storyFeedRef.current.clientWidth
-      storyFeedRef.current.scrollTo({
-        left: storyWidth * index,
-        behavior: "smooth",
-      })
-    }
-
+    const storyHeight = storyFeedRef.current.clientHeight // Assumes each story container is full height
+    storyFeedRef.current.scrollTo({
+      top: storyHeight * index,
+      behavior: "smooth",
+    })
     setActiveStoryIndex(index)
-
-    // Reset transitioning state after animation completes
-    setTimeout(() => {
-      setIsTransitioning(false)
-    }, 500) // Adjust timing to match scroll animation duration
+    setTimeout(() => setIsTransitioning(false), 500)
   }
 
-  // Function to handle tab switching with authentication check
   const handleTabClick = (tabName: string) => {
-    // Check if user is logged in for tabs that require authentication
     if (
-      (tabName === "createTab" ||
-        tabName === "profileTab" ||
-        tabName === "notificationsTab" ||
-        tabName === "bookmarksTab") &&
-      !user
+      (tabName === "createTab" || tabName === "profileTab" || tabName === "notificationsTab") && !user
     ) {
       setLoginMessage(`Please log in to access the ${tabName.replace("Tab", "")} feature`)
       setRequestedTab(tabName)
       openModal()
       return
     }
-
     setActiveTab(tabName)
-
-    // Reset scroll position when switching tabs
+    setActiveStoryIndex(0) // Reset story index when changing tabs
     if (storyFeedRef.current) {
-      if (readingMode === "page") {
-        storyFeedRef.current.scrollTop = 0
-      } else {
-        storyFeedRef.current.scrollLeft = 0
-      }
+      storyFeedRef.current.scrollTop = 0 // Reset scroll for home feed
     }
-
-    setActiveStoryIndex(0)
   }
 
-  // Enhanced scroll handling
+  // Simplified scroll handling for vertical feed (Home Tab)
   useEffect(() => {
+    const feedContainer = storyFeedRef.current
+    if (!feedContainer || activeTab !== "homeTab") return
+
+    let scrollTimeout: NodeJS.Timeout
+
     const handleScroll = () => {
-      if (!storyFeedRef.current || isTransitioning) return
-
-      const now = Date.now()
-      const feedContainer = storyFeedRef.current
-
-      // Determine scroll position and direction
-      let currentPosition: number
-      let direction: "horizontal" | "vertical"
-
-      if (readingMode === "page") {
-        currentPosition = feedContainer.scrollTop
-        direction = "vertical"
-      } else {
-        currentPosition = feedContainer.scrollLeft
-        direction = "horizontal"
-      }
-
-      // Update scroll direction
-      setScrollDirection(direction)
-
-      // Calculate scroll speed and determine if user is actively scrolling
-      const timeDelta = now - lastScrollTime
-      const positionDelta = Math.abs(currentPosition - lastScrollPosition)
-
-      // If scrolling fast enough, mark as actively scrolling
-      if (timeDelta < 150 && positionDelta > 5) {
-        setIsScrolling(true)
-      }
-
-      // If scrolling has slowed down, snap to nearest story
-      if (isScrolling && timeDelta > 150 && positionDelta < 5) {
-        setIsScrolling(false)
-
-        // Calculate which story we should snap to
-        let newIndex: number
-
-        if (readingMode === "page") {
-          const storyHeight = feedContainer.clientHeight
-          newIndex = Math.round(currentPosition / storyHeight)
-        } else {
-          const storyWidth = feedContainer.clientWidth
-          newIndex = Math.round(currentPosition / storyWidth)
-        }
-
-        // Ensure index is valid
-        if (newIndex >= 0 && newIndex < stories.length && newIndex !== activeStoryIndex) {
-          // Use smooth scrolling for the snap
-          if (readingMode === "page") {
-            feedContainer.scrollTo({
-              top: newIndex * feedContainer.clientHeight,
-              behavior: "smooth",
-            })
-          } else {
-            feedContainer.scrollTo({
-              left: newIndex * feedContainer.clientWidth,
-              behavior: "smooth",
-            })
-          }
+      clearTimeout(scrollTimeout)
+      scrollTimeout = setTimeout(() => {
+        if (isTransitioning) return
+        const storyHeight = feedContainer.clientHeight
+        const currentScrollTop = feedContainer.scrollTop
+        const newIndex = Math.round(currentScrollTop / storyHeight)
+        
+        if (newIndex !== activeStoryIndex && newIndex >= 0 && newIndex < stories.length) {
+          // Snap to the new index, but don't trigger navigateToStory if it's a result of user scroll end
+          // navigateToStory will handle smooth scroll if called directly
+          // For snapping, we can do a direct scroll or let the browser's snap behavior work
+          // feedContainer.scrollTo({ top: newIndex * storyHeight, behavior: 'smooth' })
           setActiveStoryIndex(newIndex)
         }
-      }
-
-      // Update last scroll position and time
-      setLastScrollPosition(currentPosition)
-      setLastScrollTime(now)
-
-      // Update active story index based on current scroll position
-      if (readingMode === "page") {
-        const storyHeight = feedContainer.clientHeight
-        const index = Math.round(feedContainer.scrollTop / storyHeight)
-
-        if (index >= 0 && index < stories.length && index !== activeStoryIndex) {
-          setActiveStoryIndex(index)
-        }
-      } else {
-        const storyWidth = feedContainer.clientWidth
-        const index = Math.round(feedContainer.scrollLeft / storyWidth)
-
-        if (index >= 0 && index < stories.length && index !== activeStoryIndex) {
-          setActiveStoryIndex(index)
-        }
-      }
+      }, 150) // Debounce scroll event
     }
 
-    // Add wheel event handler for more precise scroll control with smooth transitions
-    const handleWheel = (e: WheelEvent) => {
-      if (!storyFeedRef.current || isTransitioning) return
+    feedContainer.addEventListener("scroll", handleScroll, { passive: true })
+    return () => {
+      clearTimeout(scrollTimeout)
+      feedContainer.removeEventListener("scroll", handleScroll)
+    }
+  }, [activeStoryIndex, stories.length, isTransitioning, activeTab])
 
-      // Prevent default only if we're handling the scroll
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && readingMode === "page") {
-        // Vertical scrolling in page mode - navigate between stories
-        if (e.deltaY > 0 && activeStoryIndex < stories.length - 1) {
-          // Scroll down - next story
-          e.preventDefault()
-          navigateToStory(activeStoryIndex + 1)
-        } else if (e.deltaY < 0 && activeStoryIndex > 0) {
-          // Scroll up - previous story
-          e.preventDefault()
-          navigateToStory(activeStoryIndex - 1)
-        }
-      } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && readingMode === "scroll") {
-        // Horizontal scrolling in scroll mode - navigate between stories
-        if (e.deltaX > 0 && activeStoryIndex < stories.length - 1) {
-          // Scroll right - next story
-          e.preventDefault()
-          navigateToStory(activeStoryIndex + 1)
-        } else if (e.deltaX < 0 && activeStoryIndex > 0) {
-          // Scroll left - previous story
-          e.preventDefault()
-          navigateToStory(activeStoryIndex - 1)
-        }
+  const handleWheel = (e: WheelEvent) => {
+    if (activeTab !== "homeTab" || isTransitioning || !storyFeedRef.current) return
+    e.preventDefault() // Prevent page scroll, handle with story navigation
+    if (e.deltaY > 0 && activeStoryIndex < stories.length - 1) {
+      navigateToStory(activeStoryIndex + 1)
+    } else if (e.deltaY < 0 && activeStoryIndex > 0) {
+      navigateToStory(activeStoryIndex - 1)
+    }
+  }
+
+  useEffect(() => {
+    const currentFeedRef = storyFeedRef.current
+    if (activeTab === "homeTab" && currentFeedRef) {
+      currentFeedRef.addEventListener('wheel', handleWheel, { passive: false })
+    }
+    return () => {
+      if (activeTab === "homeTab" && currentFeedRef) {
+        currentFeedRef.removeEventListener('wheel', handleWheel)
       }
     }
+  }, [activeTab, activeStoryIndex, stories.length, isTransitioning])
 
-    const feedContainer = storyFeedRef.current
-    if (feedContainer) {
-      feedContainer.addEventListener("scroll", handleScroll, { passive: true })
-      feedContainer.addEventListener("wheel", handleWheel, { passive: false })
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (activeTab !== "homeTab") return
+    // Store touch start Y position
+    // Simplified, actual TikTok swipe is more nuanced with Y and X delta thresholds
+    // touchStartY.current = e.touches[0].clientY
+  }
 
-      return () => {
-        feedContainer.removeEventListener("scroll", handleScroll)
-        feedContainer.removeEventListener("wheel", handleWheel)
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (activeTab !== "homeTab" || isTransitioning || !storyFeedRef.current || e.changedTouches.length === 0) return
+    // Logic for swipe up/down based on touchStartY.current and e.changedTouches[0].clientY
+    // For now, relying on native snap scrolling or wheel/keydown. Full touch swipe needs more state.
+    // Example: 
+    // const touchEndY = e.changedTouches[0].clientY
+    // const deltaY = touchEndY - touchStartY.current
+    // if (Math.abs(deltaY) > 50) { // Threshold for swipe
+    //   if (deltaY > 0 && activeStoryIndex > 0) {
+    //     navigateToStory(activeStoryIndex - 1)
+    //   } else if (deltaY < 0 && activeStoryIndex < stories.length - 1) {
+    //     navigateToStory(activeStoryIndex + 1)
+    //   }
+    // }
+  }
+  
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (activeTab !== "homeTab" || isTransitioning) return
+      if (e.key === "ArrowDown" && activeStoryIndex < stories.length - 1) {
+        navigateToStory(activeStoryIndex + 1)
+      } else if (e.key === "ArrowUp" && activeStoryIndex > 0) {
+        navigateToStory(activeStoryIndex - 1)
       }
     }
-  }, [activeStoryIndex, readingMode, isScrolling, lastScrollTime, lastScrollPosition, stories.length, isTransitioning])
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [activeStoryIndex, stories.length, isTransitioning, activeTab])
 
-  // Handle login modal close
   const handleLoginModalClose = () => {
     closeModal()
     setLoginMessage("")
     setRequestedTab(null)
   }
 
-  // Effect to change tab after successful login
   useEffect(() => {
     if (user && requestedTab) {
       setActiveTab(requestedTab)
@@ -316,368 +210,95 @@ export default function StoryFeed() {
     }
   }, [user, requestedTab, closeModal])
 
-  // Handle touch events for story navigation with smooth transitions
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchStartX(e.touches[0].clientX)
-    setTouchStartY(e.touches[0].clientY)
-  }
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!storyFeedRef.current || e.changedTouches.length === 0 || isTransitioning) return
-
-    const touchEndX = e.changedTouches[0].clientX
-    const touchEndY = e.changedTouches[0].clientY
-    const deltaX = touchEndX - touchStartX
-    const deltaY = touchEndY - touchStartY
-
-    // Determine if this is a significant swipe
-    const isSignificantSwipe = Math.abs(deltaX) > 50 || Math.abs(deltaY) > 50
-
-    if (!isSignificantSwipe) return
-
-    if (readingMode === "page") {
-      // In page mode, vertical swipe navigates between stories
-      if (Math.abs(deltaY) > Math.abs(deltaX)) {
-        if (deltaY > 0 && activeStoryIndex > 0) {
-          // Swipe down - go to previous story
-          navigateToStory(activeStoryIndex - 1)
-        } else if (deltaY < 0 && activeStoryIndex < stories.length - 1) {
-          // Swipe up - go to next story
-          navigateToStory(activeStoryIndex + 1)
-        }
-      }
-    } else {
-      // In scroll mode, horizontal swipe navigates between stories
-      if (Math.abs(deltaX) > Math.abs(deltaY)) {
-        if (deltaX > 0 && activeStoryIndex > 0) {
-          // Swipe right - go to previous story
-          navigateToStory(activeStoryIndex - 1)
-        } else if (deltaX < 0 && activeStoryIndex < stories.length - 1) {
-          // Swipe left - go to next story
-          navigateToStory(activeStoryIndex + 1)
-        }
-      }
-    }
-  }
-
-  // Add keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (activeTab !== "homeTab" || isTransitioning) return
-
-      if (readingMode === "page") {
-        // In page mode, up/down arrows navigate between stories
-        if (e.key === "ArrowUp" && activeStoryIndex > 0) {
-          navigateToStory(activeStoryIndex - 1)
-        } else if (e.key === "ArrowDown" && activeStoryIndex < stories.length - 1) {
-          navigateToStory(activeStoryIndex + 1)
-        }
-      } else {
-        // In scroll mode, left/right arrows navigate between stories
-        if (e.key === "ArrowLeft" && activeStoryIndex > 0) {
-          navigateToStory(activeStoryIndex - 1)
-        } else if (e.key === "ArrowRight" && activeStoryIndex < stories.length - 1) {
-          navigateToStory(activeStoryIndex + 1)
-        }
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [activeStoryIndex, readingMode, activeTab, stories.length, isTransitioning])
-
   return (
-    <div className="app-container relative w-full h-screen mx-auto overflow-hidden shadow-md bg-paper dark:bg-paper-dark md:h-screen md:w-full md:my-0 md:rounded-none lg:w-full lg:grid lg:grid-cols-[auto_1fr] lg:grid-rows-[60px_1fr]">
-      {/* Desktop Sidebar - Only visible on large screens */}
-      <div
-        className={`desktop-sidebar hidden lg:flex lg:flex-col lg:row-span-3 lg:border-r lg:border-paper-dark/20 dark:lg:border-paper/20 lg:bg-paper dark:lg:bg-paper-dark transition-all duration-300 ${
-          isSidebarCollapsed ? "lg:w-[70px]" : "lg:w-[250px]"
-        }`}
-      >
-        {/* App Logo */}
-        <div className="sidebar-header p-4 flex items-center justify-between border-b border-paper-dark/20 dark:border-paper/20">
-          {!isSidebarCollapsed && (
-            <div className="app-title text-xl font-bold text-highlight dark:text-highlight tracking-wide">
-              GoodStories
-            </div>
-          )}
-          <button
-            onClick={toggleSidebar}
-            className="text-ink-light dark:text-ink-light hover:text-highlight dark:hover:text-highlight transition-colors"
-          >
-            {isSidebarCollapsed ? (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="lucide lucide-chevron-right"
-              >
-                <path d="m9 18 6-6-6-6" />
-              </svg>
-            ) : (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="lucide lucide-chevron-left"
-              >
-                <path d="m15 18-6-6 6-6" />
-              </svg>
-            )}
-          </button>
-        </div>
+    <div className="flex flex-col lg:flex-row h-screen overflow-hidden bg-paper text-ink">
+      {/* Desktop Side Navigation - part of the flex flow */}
+      <DesktopSideNav 
+        activeTab={activeTab} 
+        onTabClick={handleTabClick} 
+        className="hidden lg:flex flex-col w-60 h-full sticky top-0 overflow-y-auto z-20 border-r border-border"
+      />
+      
+      {/* Main application area: flex column that takes remaining space and handles its own overflow */} 
+      <div className="flex flex-col flex-1 overflow-hidden"> 
+        <AppHeader /> {/* Global App Header - takes its own height */} 
 
-        {/* Navigation Items */}
-        <div className="sidebar-nav flex-1 overflow-y-auto py-4">
-          <SidebarNavItem
-            icon={<Home className="w-6 h-6" />}
-            label="Home"
-            isActive={activeTab === "homeTab"}
-            onClick={() => handleTabClick("homeTab")}
-            isCollapsed={isSidebarCollapsed}
-          />
-          <SidebarNavItem
-            icon={<Compass className="w-6 h-6" />}
-            label="Discover"
-            isActive={activeTab === "discoverTab"}
-            onClick={() => handleTabClick("discoverTab")}
-            isCollapsed={isSidebarCollapsed}
-          />
-          <SidebarNavItem
-            icon={<PlusCircle className="w-6 h-6" />}
-            label="Create"
-            isActive={activeTab === "createTab"}
-            onClick={() => handleTabClick("createTab")}
-            isCollapsed={isSidebarCollapsed}
-          />
-          <SidebarNavItem
-            icon={<Bell className="w-6 h-6" />}
-            label="Notifications"
-            isActive={activeTab === "notificationsTab"}
-            onClick={() => handleTabClick("notificationsTab")}
-            isCollapsed={isSidebarCollapsed}
-          />
-          <SidebarNavItem
-            icon={<User className="w-6 h-6" />}
-            label="Profile"
-            isActive={activeTab === "profileTab"}
-            onClick={() => handleTabClick("profileTab")}
-            isCollapsed={isSidebarCollapsed}
-          />
-
-          {!isSidebarCollapsed && (
-            <>
-              <div className="mx-4 my-4 border-t border-paper-dark/20 dark:border-paper/20"></div>
-
-              <div className="px-4 py-2">
-                <h3 className="text-xs uppercase text-ink-light dark:text-ink-light font-semibold tracking-wider">
-                  Library
-                </h3>
-              </div>
-
-              <SidebarNavItem
-                icon={<BookmarkIcon className="w-6 h-6" />}
-                label="Bookmarks"
-                isActive={false}
-                onClick={() => router.push("/bookmarks")}
-                isCollapsed={isSidebarCollapsed}
-              />
-            </>
-          )}
-        </div>
-
-        {/* User Profile Section */}
-        {user && (
-          <div className="sidebar-footer border-t border-paper-dark/20 dark:border-paper/20 p-4 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full overflow-hidden cursor-pointer">
-              <Image
-                src={userAvatarUrl || "/placeholder.svg"}
-                alt="Profile"
-                width={32}
-                height={32}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            {!isSidebarCollapsed && (
-              <div className="flex-1 truncate">
-                <div className="text-sm font-medium truncate">{userDisplayName}</div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* App Header - Adjust to span only the content area on desktop */}
-      <header className="app-header fixed top-0 w-full py-4 px-4 flex items-center bg-paper dark:bg-paper-dark z-[100] border-b border-paper-dark/20 dark:border-paper/20 lg:static lg:col-start-2 lg:col-end-3 lg:pr-6">
-        {" "}
-        {/* Removed justify-between, added lg:pr-6 */}
-        <div className="app-title text-2xl font-bold text-highlight dark:text-highlight lg:hidden">GoodStories</div>
-        <div className="header-icons flex items-center gap-4 ml-auto">
-          {" "}
-          {/* Added ml-auto */}
-          <Search className="w-6 h-6 text-ink dark:text-ink-light cursor-pointer" />
-          <Link href="/bookmarks" passHref>
-            <BookmarkIcon className="w-6 h-6 text-ink dark:text-ink-light cursor-pointer" />
-          </Link>
-          <ThemeToggle />
-          {user && (
+        {/* Main Content Area - Switches based on activeTab - this area will allow content to scroll */} 
+        <main className="flex-1 w-full relative"> {/* Removed overflow-y-auto, added relative for potential absolute children in tabs */} 
+          {activeTab === "homeTab" && (
             <div
-              className="w-8 h-8 rounded-full overflow-hidden cursor-pointer lg:hidden"
-              onClick={() => handleTabClick("profileTab")}
+              ref={storyFeedRef}
+              className="absolute inset-0 overflow-y-auto snap-y snap-mandatory scroll-smooth" // Fill parent 'main' and handle own scroll
             >
-              <Image
-                src={userAvatarUrl || "/placeholder.svg"}
-                alt="Profile"
-                width={32}
-                height={32}
-                className="w-full h-full object-cover"
-              />
+              {isLoading ? (
+                <div className="h-full w-full flex items-center justify-center text-foreground">
+                  Loading stories...
+                </div>
+              ) : stories.length > 0 ? (
+                stories.map((story, index) => (
+                  <div
+                    key={story.id}
+                    className="h-screen w-full snap-start flex-shrink-0 relative bg-paper"
+                  >
+                    <StoryContainer
+                      story={story}
+                      isActive={index === activeStoryIndex}
+                    />
+                  </div>
+                ))
+              ) : (
+                <div className="h-full w-full flex items-center justify-center text-foreground">
+                  No stories yet. Be the first to create!
+                </div>
+              )}
             </div>
           )}
-        </div>
-      </header>
-
-      {/* Home Tab */}
-      <div
-        className={`tab-content ${activeTab === "homeTab" ? "block" : "hidden"} h-[calc(100vh-120px)] overflow-hidden pt-[60px] lg:col-start-2 lg:col-end-3 lg:row-start-2 lg:row-end-3 lg:h-[calc(100vh-60px)] lg:pt-0`}
-        id="homeTab"
-      >
-        <div
-          className={`story-feed h-full w-full ${
-            readingMode === "page"
-              ? "flex flex-col overflow-y-auto snap-y snap-mandatory"
-              : "flex overflow-x-auto snap-x snap-mandatory"
-          } lg:max-h-[calc(100vh-60px)]`}
-          ref={storyFeedRef}
-          style={{
-            scrollSnapType: readingMode === "page" ? "y mandatory" : "x mandatory",
-            scrollBehavior: "smooth",
-          }}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-        >
-          {isLoading ? (
-            <div className="flex items-center justify-center w-full h-full">
-              <div className="text-center">
-                <div className="w-12 h-12 border-4 border-highlight border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                <p className="text-ink dark:text-ink-light">Loading stories...</p>
-              </div>
-            </div>
-          ) : stories.length > 0 ? (
-            stories.map((story, index) => (
-              <div
-                key={index}
-                className={`story-wrapper ${readingMode === "page" ? "min-h-full snap-start" : "min-w-full snap-center"}`}
-              >
-                <StoryContainer
-                  story={story}
-                  showSidebar={showSidebar}
-                  toggleSidebar={() => setShowSidebar(!showSidebar)}
-                  isActive={index === activeStoryIndex}
-                />
-              </div>
-            ))
-          ) : (
-            <div className="flex items-center justify-center w-full h-full">
-              <div className="text-center p-8">
-                <h3 className="text-xl font-bold mb-2">No stories found</h3>
-                <p className="text-ink-light dark:text-ink-light mb-4">
-                  There are no stories available right now. Be the first to create one!
-                </p>
-                <button
-                  onClick={() => handleTabClick("createTab")}
-                  className="px-4 py-2 bg-highlight text-white rounded-full"
-                >
-                  Create a Story
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+          {activeTab === "discoverTab" && <DiscoverTab />}
+          {activeTab === "createTab" && <CreateTab />}
+          {activeTab === "notificationsTab" && <NotificationsTab />}
+          {activeTab === "profileTab" && <ProfileTab />}
+        </main>
       </div>
 
-      {/* Discover Tab */}
-      <div
-        className={`tab-content ${activeTab === "discoverTab" ? "block" : "hidden"} h-[calc(100vh-120px)] overflow-hidden pt-[60px] lg:col-start-2 lg:col-end-3 lg:row-start-2 lg:row-end-3 lg:h-[calc(100vh-60px)] lg:pt-0`}
-        id="discoverTab"
-      >
-        <DiscoverTab />
-      </div>
-
-      {/* Create Tab */}
-      <div
-        className={`tab-content ${activeTab === "createTab" ? "block" : "hidden"} h-[calc(100vh-120px)] overflow-hidden pt-[60px] lg:col-start-2 lg:col-end-3 lg:row-start-2 lg:row-end-3 lg:h-[calc(100vh-60px)] lg:pt-0`}
-        id="createTab"
-      >
-        <CreateTab />
-      </div>
-
-      {/* Notifications Tab */}
-      <div
-        className={`tab-content ${activeTab === "notificationsTab" ? "block" : "hidden"} h-[calc(100vh-120px)] overflow-hidden pt-[60px] lg:col-start-2 lg:col-end-3 lg:row-start-2 lg:row-end-3 lg:h-[calc(100vh-60px)] lg:pt-0`}
-        id="notificationsTab"
-      >
-        <NotificationsTab />
-      </div>
-
-      {/* Profile Tab */}
-      <div
-        className={`tab-content ${activeTab === "profileTab" ? "block" : "hidden"} h-[calc(100vh-120px)] overflow-hidden pt-[60px] lg:col-start-2 lg:col-end-3 lg:row-start-2 lg:row-end-3 lg:h-[calc(100vh-60px)] lg:pt-0`}
-        id="profileTab"
-      >
-        <ProfileTab isMobile={isMobile} />
-      </div>
-
-      {/* Bottom Navigation - Hide on desktop */}
-      <nav className="bottom-nav fixed bottom-0 w-full flex justify-around py-4 bg-paper dark:bg-paper-dark border-t border-paper-dark/20 dark:border-paper/20 z-[100] lg:hidden">
+      {/* Bottom Navigation - Mobile Only - sticky to the bottom of the flex container it's in (which is Main Application Area) */} 
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-paper border-t border-border flex justify-around items-center p-2 z-30">
         <NavItem
-          icon={<Home className="w-6 h-6 mb-1" />}
+          icon={<Home className="h-7 w-7 mb-0.5" />}
           label="Home"
           isActive={activeTab === "homeTab"}
           onClick={() => handleTabClick("homeTab")}
         />
         <NavItem
-          icon={<Compass className="w-6 h-6 mb-1" />}
+          icon={<Compass className="h-7 w-7 mb-0.5" />}
           label="Discover"
           isActive={activeTab === "discoverTab"}
           onClick={() => handleTabClick("discoverTab")}
         />
         <NavItem
-          icon={<PlusCircle className="w-6 h-6 mb-1" />}
+          icon={<PlusCircle className="h-7 w-7 mb-0.5" />}
           label="Create"
           isActive={activeTab === "createTab"}
           onClick={() => handleTabClick("createTab")}
         />
         <NavItem
-          icon={<Bell className="w-6 h-6 mb-1" />}
+          icon={<Bell className="h-7 w-7 mb-0.5" />}
           label="Notifications"
           isActive={activeTab === "notificationsTab"}
           onClick={() => handleTabClick("notificationsTab")}
         />
         <NavItem
-          icon={<User className="w-6 h-6 mb-1" />}
+          icon={<User className="h-7 w-7 mb-0.5" />}
           label="Profile"
           isActive={activeTab === "profileTab"}
           onClick={() => handleTabClick("profileTab")}
         />
       </nav>
 
-      {/* Login Modal - Only show for non-authenticated users */}
-      {!user && isLoginModalOpen && (
-        <LoginModal isOpen={isLoginModalOpen} onClose={handleLoginModalClose} message={loginMessage} />
-      )}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={handleLoginModalClose}
+        message={loginMessage}
+      />
     </div>
   )
 }
@@ -694,18 +315,15 @@ function NavItem({
   onClick: () => void
 }) {
   return (
-    <a
-      href="#"
-      className={`nav-item flex flex-col items-center ${
-        isActive ? "text-highlight dark:text-highlight" : "text-ink-light dark:text-ink-light"
-      } no-underline text-sm transition-colors duration-300`}
-      onClick={(e) => {
-        e.preventDefault()
-        onClick()
-      }}
+    <button
+      className={`flex flex-col items-center justify-center p-1 rounded-md focus:outline-none focus:ring-1 focus:ring-highlight/50 transition-colors duration-150 w-1/5 min-h-[50px] ${isActive ? "text-highlight" : "text-muted-foreground hover:text-highlight/70"}`}
+      onClick={onClick}
+      aria-label={label}
     >
       {icon}
-      <span>{label}</span>
-    </a>
+      <span className={`text-xs ${isActive ? "text-highlight font-medium" : "text-muted-foreground"}`}>
+        {label}
+      </span>
+    </button>
   )
 }

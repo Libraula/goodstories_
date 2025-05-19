@@ -242,136 +242,142 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
   }
 
   return (
-    <div className="comments-section flex flex-col h-full max-h-[90vh]">
-      {/* Header */}
-      <div className="comments-header sticky top-0 z-10 flex items-center justify-between p-4 border-b border-border dark:border-border bg-paper dark:bg-paper-dark">
-        <div className="flex items-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-0 sm:p-4" onClick={onClose}>
+      <div 
+        className="comments-section flex flex-col bg-paper dark:bg-paper-dark text-ink dark:text-ink-light w-full h-full sm:max-w-lg sm:h-auto sm:max-h-[90vh] sm:rounded-xl shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()} // Prevent click bubbling to the overlay
+      >
+        {/* Header */}
+        <div className="comments-header sticky top-0 z-10 flex items-center justify-between p-3 sm:p-4 border-b border-border bg-paper dark:bg-paper-dark">
+          <div className="flex items-center">
+            <h2 className="text-lg font-semibold flex items-center">
+              <MessageCircle className="w-5 h-5 mr-2" />
+              Comments ({comments?.length || 0})
+            </h2>
+          </div>
           <button
             onClick={onClose}
-            className="mr-2 text-ink-light dark:text-ink-light hover:text-ink dark:hover:text-ink p-2 rounded-full hover:bg-paper-dark/10 dark:hover:bg-paper/10 transition-colors"
+            className="text-muted-foreground hover:text-ink p-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+            aria-label="Close comments"
           >
             <X className="w-5 h-5" />
           </button>
-          <h2 className="text-lg font-semibold flex items-center">
-            <MessageCircle className="w-5 h-5 mr-2" />
-            Comments ({comments?.length || 0})
-          </h2>
         </div>
-      </div>
 
-      {/* Comments list */}
-      <div ref={commentsContainerRef} className="comments-list flex-1 overflow-y-auto p-4 space-y-6">
-        {isLoading ? (
-          <div className="text-center py-8 text-ink-light dark:text-ink-light">
-            <div className="flex flex-col items-center">
-              <Loader2 className="h-12 w-12 animate-spin text-highlight mb-3" />
-              <p className="text-lg font-medium">Loading comments...</p>
+        {/* Comments list */}
+        <div ref={commentsContainerRef} className="comments-list flex-1 overflow-y-auto p-3 sm:p-4 space-y-5">
+          {isLoading ? (
+            <div className="text-center py-8 text-ink-light dark:text-ink-light">
+              <div className="flex flex-col items-center">
+                <Loader2 className="h-12 w-12 animate-spin text-highlight mb-3" />
+                <p className="text-lg font-medium">Loading comments...</p>
+              </div>
             </div>
-          </div>
-        ) : !comments || comments.length === 0 ? (
-          <div className="text-center py-8 text-ink-light dark:text-ink-light">
-            <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p className="text-lg font-medium">No comments yet</p>
-            <p className="text-sm">Be the first to share your thoughts!</p>
-          </div>
-        ) : (
-          <ul className="space-y-4">
-            {comments.map((comment) => (
-              <li
-                key={comment.id}
-                className={`comment-item py-3 px-2 rounded-lg hover:bg-paper-dark/5 dark:hover:bg-paper/5 transition-colors ${animatingCommentId === comment.id ? "animate-pulse bg-highlight/5" : ""}`}
-              >
-                <div className="comment-header flex items-start justify-between mb-2">
-                  <div className="flex items-center">
-                    <Link href={`/profile/${comment.author_id}`} className="flex-shrink-0">
-                      <Image
-                        src={comment.profiles.avatar_url || "/placeholder.svg"}
-                        alt={comment.profiles.name || comment.profiles.username}
-                        width={40}
-                        height={40}
-                        className="rounded-full mr-3 cursor-pointer hover:opacity-80 transition-opacity"
-                      />
-                    </Link>
-                    <div>
-                      <div className="font-medium">{comment.profiles.name || comment.profiles.username}</div>
-                      <div className="text-xs text-ink-light dark:text-ink-light">
-                        {formatTimeAgo(comment.created_at)}
+          ) : !comments || comments.length === 0 ? (
+            <div className="text-center py-8 text-ink-light dark:text-ink-light">
+              <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p className="text-lg font-medium">No comments yet</p>
+              <p className="text-sm">Be the first to share your thoughts!</p>
+            </div>
+          ) : (
+            <ul className="space-y-4">
+              {comments.map((comment) => (
+                <li
+                  key={comment.id}
+                  className={`comment-item py-3 px-2 rounded-lg hover:bg-paper-dark/5 dark:hover:bg-paper/5 transition-colors ${animatingCommentId === comment.id ? "animate-pulse bg-highlight/5" : ""}`}
+                >
+                  <div className="comment-header flex items-start justify-between mb-2">
+                    <div className="flex items-center">
+                      <Link href={`/profile/${comment.author_id}`} className="flex-shrink-0">
+                        <Image
+                          src={comment.profiles.avatar_url || "/placeholder.svg"}
+                          alt={comment.profiles.name || comment.profiles.username}
+                          width={40}
+                          height={40}
+                          className="rounded-full mr-3 cursor-pointer hover:opacity-80 transition-opacity"
+                        />
+                      </Link>
+                      <div>
+                        <div className="font-medium">{comment.profiles.name || comment.profiles.username}</div>
+                        <div className="text-xs text-ink-light dark:text-ink-light">
+                          {formatTimeAgo(comment.created_at)}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                <div className="comment-text text-sm bg-paper-light dark:bg-paper-dark/50 p-3 rounded-lg ml-[52px] shadow-sm">
-                  {comment.content}
-                  {comment.updated_at && comment.updated_at !== comment.created_at && (
-                    <span className="text-xs text-ink-light dark:text-ink-light ml-2 italic">(edited)</span>
-                  )}
-                </div>
-                {/* Like button and count */}
-                <div className="comment-actions flex items-center mt-2 ml-[52px]">
-                  <button
-                    onClick={() =>
-                      handleLikeComment(
-                        comment.id,
-                        optimisticLikes[comment.id]?.liked ?? comment.user_has_liked,
-                        optimisticLikes[comment.id]?.count ?? comment.likes_count ?? 0,
-                      )
-                    }
-                    className={`flex items-center text-xs mr-4 transition-colors duration-150 ${
-                      (optimisticLikes[comment.id]?.liked ?? comment.user_has_liked ?? false)
-                        ? "text-red-500 hover:text-red-600"
-                        : "text-ink-light dark:text-ink-light hover:text-red-500"
-                    }`}
-                    aria-label={
-                      (optimisticLikes[comment.id]?.liked ?? comment.user_has_liked ?? false)
-                        ? "Unlike comment"
-                        : "Like comment"
-                    }
-                  >
-                    <Heart
-                      className={`w-4 h-4 mr-1 ${
-                        (optimisticLikes[comment.id]?.liked ?? comment.user_has_liked ?? false) ? "fill-current" : ""
-                      } ${animatingCommentId === comment.id ? "animate-ping" : ""}`}
-                    />
-                    <span>{optimisticLikes[comment.id]?.count ?? comment.likes_count ?? 0}</span>
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* Comment input - improved for mobile */}
-      <div className="comment-input-container sticky bottom-0 border-t border-border dark:border-border p-4 pb-6 md:pb-4 bg-paper dark:bg-paper-dark">
-        <div className="flex items-start">
-          <Image
-            src={user?.user_metadata?.avatar_url || "/placeholder.svg"}
-            alt={user?.user_metadata?.full_name || user?.email?.split("@")[0] || "You"}
-            width={40}
-            height={40}
-            className="rounded-full mr-3 flex-shrink-0"
-          />
-          <div className="flex-1 relative">
-            <textarea
-              ref={commentInputRef}
-              value={newComment}
-              onChange={handleCommentChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Add a comment..."
-              className="w-full border border-border dark:border-border rounded-full p-3 pr-12 resize-none bg-white dark:bg-paper-dark text-sm min-h-[60px] focus:ring-2 focus:ring-highlight/30 focus:border-highlight dark:focus:border-highlight shadow-sm"
-            />
-            <button
-              onClick={handleCommentSubmit}
-              disabled={!newComment.trim() || isSubmitting}
-              className="absolute right-3 bottom-3 bg-highlight text-white p-2 rounded-full disabled:bg-highlight/50 disabled:text-white/70 transition-colors"
-              aria-label="Send comment"
-            >
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            </button>
-          </div>
+                  <div className="comment-text text-sm bg-paper-light dark:bg-paper-dark/50 p-3 rounded-lg ml-[52px] shadow-sm">
+                    {comment.content}
+                    {comment.updated_at && comment.updated_at !== comment.created_at && (
+                      <span className="text-xs text-ink-light dark:text-ink-light ml-2 italic">(edited)</span>
+                    )}
+                  </div>
+                  {/* Like button and count */}
+                  <div className="comment-actions flex items-center mt-2 ml-[52px]">
+                    <button
+                      onClick={() =>
+                        handleLikeComment(
+                          comment.id,
+                          optimisticLikes[comment.id]?.liked ?? comment.user_has_liked,
+                          optimisticLikes[comment.id]?.count ?? comment.likes_count ?? 0,
+                        )
+                      }
+                      className={`flex items-center text-xs mr-4 transition-colors duration-150 ${
+                        (optimisticLikes[comment.id]?.liked ?? comment.user_has_liked ?? false)
+                          ? "text-red-500 hover:text-red-600"
+                          : "text-ink-light dark:text-ink-light hover:text-red-500"
+                      }`}
+                      aria-label={
+                        (optimisticLikes[comment.id]?.liked ?? comment.user_has_liked ?? false)
+                          ? "Unlike comment"
+                          : "Like comment"
+                      }
+                    >
+                      <Heart
+                        className={`w-4 h-4 mr-1 ${
+                          (optimisticLikes[comment.id]?.liked ?? comment.user_has_liked ?? false) ? "fill-current" : ""
+                        } ${animatingCommentId === comment.id ? "animate-ping" : ""}`}
+                      />
+                      <span>{optimisticLikes[comment.id]?.count ?? comment.likes_count ?? 0}</span>
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-        <div className="text-xs text-ink-light dark:text-ink-light mt-2 text-right">
-          Press Enter to post (Shift+Enter for new line)
+
+        {/* Comment input - improved for mobile */}
+        <div className="comment-input-container sticky bottom-0 border-t border-border p-3 sm:p-4 bg-paper dark:bg-paper-dark">
+          <div className="flex items-start space-x-3">
+            <Image
+              src={user?.user_metadata?.avatar_url || "/placeholder.svg"}
+              alt={user?.user_metadata?.full_name || user?.email?.split("@")[0] || "You"}
+              width={40}
+              height={40}
+              className="rounded-full mr-3 flex-shrink-0"
+            />
+            <div className="flex-1 relative">
+              <textarea
+                ref={commentInputRef}
+                value={newComment}
+                onChange={handleCommentChange}
+                onKeyDown={handleKeyDown}
+                placeholder="Add a comment..."
+                className="w-full border border-border rounded-lg p-3 pr-12 resize-none bg-paper-light dark:bg-stone-700 text-sm min-h-[50px] focus:ring-1 focus:ring-highlight focus:border-highlight shadow-sm transition-colors duration-150"
+              />
+              <button
+                onClick={handleCommentSubmit}
+                disabled={!newComment.trim() || isSubmitting}
+                className="absolute right-3 bottom-3 bg-highlight text-white p-2 rounded-full disabled:bg-highlight/50 disabled:text-white/70 transition-colors"
+                aria-label="Send comment"
+              >
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="text-xs text-ink-light dark:text-ink-light mt-2 text-right">
+            Press Enter to post (Shift+Enter for new line)
+          </div>
         </div>
       </div>
     </div>

@@ -6,28 +6,7 @@ import { isAuthenticated } from "@/utils/supabase/server"
 
 export async function GET(request: Request) {
   try {
-    // Create a Supabase client
-    const cookieStore = cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-          set(name: string, value: string, options: any) {
-            /* No-op */
-          },
-          remove(name: string, options: any) {
-            /* No-op */
-          },
-        },
-      },
-    )
-
-    // Get the current user for checking likes
-    const { userId } = await isAuthenticated()
+    const { userId, supabase } = await isAuthenticated()
 
     // Get storyId from query params
     const { searchParams } = new URL(request.url)
@@ -72,22 +51,22 @@ export async function GET(request: Request) {
         .eq("user_id", userId)
         .in(
           "comment_id",
-          comments.map((c) => c.id),
+          comments.map((c: { id: string }) => c.id),
         )
 
       if (!likesError && likes) {
-        userLikes = new Set(likes.map((like) => like.comment_id))
+        userLikes = new Set(likes.map((like: { comment_id: string }) => like.comment_id))
       }
     }
 
     // Add user_has_liked property to each comment
-    const commentsWithLikes = comments.map((comment) => ({
+    const commentsWithLikes = comments.map((comment: any) => ({
       ...comment,
       user_has_liked: userLikes.has(comment.id),
     }))
 
     return NextResponse.json({ data: commentsWithLikes })
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error in comments GET endpoint:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
@@ -112,7 +91,7 @@ export async function POST(request: Request) {
     }
 
     // Get user profile
-    const { data: profileData, error: profileError } = await supabase
+    let { data: profileData, error: profileError } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
@@ -151,7 +130,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Failed to create user profile" }, { status: 500 })
           }
 
-          const profileData = newProfile
+          profileData = newProfile; // Assign the newly created profile to profileData
         } else {
           return NextResponse.json({ error: "Failed to fetch user profile" }, { status: 500 })
         }
@@ -180,12 +159,20 @@ export async function POST(request: Request) {
     }
 
     // Increment the story's comment count
-    await supabase.rpc("increment_comments", { story_id: storyId }).catch((err) => {
+    await supabase.rpc("increment_comments", { story_id: storyId }).catch((err: any) => {
       console.error("Error incrementing comment count:", err)
     })
 
     // Format the response
     const comment = commentData[0]
+
+    if (!profileData) {
+      // This case should ideally not be reached if profile creation/fetching logic is sound
+      // and isAuthenticated ensures a user context that can lead to a profile.
+      console.error("Critical error: profileData is null/undefined before formatting comment response for user:", userId, "story:", storyId);
+      return NextResponse.json({ error: "Failed to process comment due to profile issue" }, { status: 500 });
+    }
+
     const formattedComment = {
       ...comment,
       user_has_liked: false,
@@ -198,7 +185,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ data: formattedComment }, { status: 201 })
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error in comments POST endpoint:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
@@ -252,12 +239,12 @@ export async function DELETE(request: Request) {
     }
 
     // Decrement the story's comment count
-    await supabase.rpc("decrement_comments", { story_id: storyId }).catch((err) => {
+    await supabase.rpc("decrement_comments", { story_id: storyId }).catch((err: any) => {
       console.error("Error decrementing comment count:", err)
     })
 
     return NextResponse.json({ message: "Comment deleted successfully" }, { status: 200 })
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error in comments DELETE endpoint:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
@@ -321,7 +308,7 @@ export async function PATCH(request: Request) {
       },
       { status: 200 },
     )
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error in comments PATCH endpoint:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }

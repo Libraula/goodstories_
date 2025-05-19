@@ -174,7 +174,7 @@ export async function getStories(limit = 10, offset = 0) {
     }
 
     // Explicitly transform each story to ensure it has the author property
-    return data.map((story) => transformStoryData(story as StoryRow))
+    return data.map((story: StoryRow) => transformStoryData(story as StoryRow))
   } catch (err) {
     console.error("Exception fetching stories:", err)
     return []
@@ -361,23 +361,7 @@ export async function getBookmarkedStories(userId: string) {
     return []
   }
 
-  return data.map((bookmark: any) => ({
-    id: bookmark.stories.id,
-    title: bookmark.stories.title,
-    pages: bookmark.stories.pages,
-    tags: bookmark.stories.tags,
-    read_time: bookmark.stories.read_time,
-    like_count: bookmark.stories.like_count,
-    comment_count: bookmark.stories.comment_count,
-    bookmark_count: bookmark.stories.bookmark_count,
-    created_at: bookmark.stories.created_at,
-    updated_at: bookmark.stories.updated_at,
-    author: {
-      id: bookmark.stories.author_id,
-      name: bookmark.stories.profiles.name || bookmark.stories.profiles.username,
-      avatar: bookmark.stories.profiles.avatar_url,
-    },
-  }))
+  return data.map((bookmark: { stories: StoryRow }) => transformStoryData(bookmark.stories as StoryRow))
 }
 
 export async function getUserBookmarkedStories(userId: string) {
@@ -399,7 +383,7 @@ export async function getUserBookmarkedStories(userId: string) {
   }
 
   // Explicitly transform each story to ensure it has the author property
-  return data.map((bookmark: any) => transformStoryData(bookmark.stories as StoryRow))
+  return data.map((bookmark: { stories: StoryRow }) => transformStoryData(bookmark.stories as StoryRow))
 }
 
 export async function getUserBookmarks(userId: string) {
@@ -415,7 +399,7 @@ export async function getUserBookmarks(userId: string) {
   }
 
   // Get the story IDs from the bookmarks
-  const storyIds = data.map((bookmark) => bookmark.story_id)
+  const storyIds = data.map((bookmark: { story_id: string }) => bookmark.story_id)
 
   // Fetch the stories
   const { data: stories, error: storiesError } = await supabase
@@ -434,7 +418,7 @@ export async function getUserBookmarks(userId: string) {
   }
 
   // Transform the stories
-  return stories.map((story) => transformStoryData(story as StoryRow))
+  return stories.map((story: StoryRow) => transformStoryData(story as StoryRow))
 }
 
 export async function getUserStories(userId: string) {
@@ -458,7 +442,7 @@ export async function getUserStories(userId: string) {
     }
 
     // Transform the stories to include author information
-    return data.map((story) => transformStoryData(story as StoryRow))
+    return data.map((story: StoryRow) => transformStoryData(story as StoryRow))
   } catch (err) {
     console.error("Exception fetching user stories:", err)
     return []
@@ -482,7 +466,7 @@ export async function getComments(storyId: string) {
   }
 
   // Transform data to match the expected format
-  const comments = data.map((comment) => ({
+  const comments = data.map((comment: any) => ({
     id: comment.id,
     author: {
       name: comment.profiles.name || comment.profiles.username,
@@ -582,7 +566,9 @@ export async function getUserProfile(userId: string) {
   const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
 
   if (error) {
-    console.error("Error fetching user profile:", error)
+    // Log more details if possible, or the raw error string
+    console.error("Error fetching user profile. Raw error:", JSON.stringify(error, null, 2));
+    console.error("Error details:", error.message, error.code, error.details, error.hint);
     return null
   }
 
