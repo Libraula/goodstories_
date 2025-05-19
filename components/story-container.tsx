@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import {
   Heart, MessageCircle, Bookmark, Share2, Music2, PlayCircle, PauseCircle, UserPlus, ChevronLeft, ChevronRight, Maximize, Minimize, Volume2, VolumeX,
-  PanelTopClose, PanelTopOpen, PlusCircle as PlusCircleIcon, ArrowDownCircle
+  PanelTopClose, PanelTopOpen, PlusCircle as PlusCircleIcon, ArrowDownCircle, X, Send
 } from "lucide-react";
 import type { Story, StoryPage } from "@/lib/types";
 import CommentsSection from "./comments-section";
@@ -194,12 +194,25 @@ export default function StoryContainer({
     if (!pagesContainerRef.current || !story || pageIndex < 0 || pageIndex >= displayPages.length) return;
     const container = pagesContainerRef.current;
     const scrollAmount = readingMode === 'page' ? container.clientWidth * pageIndex : container.clientHeight * pageIndex;
+    
+    // Use smooth scrolling with a custom duration
+    container.style.scrollBehavior = 'smooth';
+    container.style.scrollSnapType = 'none'; // Temporarily disable snap for smooth scrolling
+    
     container.scrollTo({
       [readingMode === 'page' ? 'left' : 'top']: scrollAmount,
       behavior: 'smooth'
     });
+
+    // Re-enable snap after scrolling is complete
+    setTimeout(() => {
+      if (container) {
+        container.style.scrollSnapType = readingMode === 'page' ? 'x mandatory' : 'y mandatory';
+      }
+    }, 500); // Adjust timing based on your scroll duration
+
     setCurrentPage(pageIndex);
-  }, [story, readingMode, displayPages.length]); // Added displayPages.length
+  }, [story, readingMode, displayPages.length]);
 
   const handleNextPage = () => scrollToPage(currentPage + 1);
   const handlePrevPage = () => scrollToPage(currentPage - 1);
@@ -214,13 +227,15 @@ export default function StoryContainer({
         const itemDim = readingMode === 'page' ? container.clientWidth : container.clientHeight;
         if (itemDim === 0) return;
         const newPage = Math.round(scrollDim / itemDim);
-        if (newPage !== currentPage && newPage >= 0 && newPage < displayPages.length) { // Check against displayPages.length
+        if (newPage !== currentPage && newPage >= 0 && newPage < displayPages.length) {
             setCurrentPage(newPage);
         }
     };
-    container.addEventListener('scroll', handleScroll);
+
+    // Add passive scroll listener for better performance
+    container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [currentPage, story, readingMode, isSwiping, displayPages.length]); // Added displayPages.length
+  }, [currentPage, story, readingMode, isSwiping, displayPages.length]);
   
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!story || displayPages.length <= 1) return; // Check against displayPages
@@ -293,13 +308,19 @@ export default function StoryContainer({
       <div 
         ref={pagesContainerRef} 
         className={`flex-1 flex overflow-auto snap-mandatory ${readingMode === 'page' ? 'flex-row snap-x' : 'flex-col snap-y'} scroll-smooth hide-scrollbar relative group`}
+        style={{
+          scrollBehavior: 'smooth',
+          scrollSnapType: readingMode === 'page' ? 'x mandatory' : 'y mandatory',
+          scrollSnapStop: 'always',
+          WebkitOverflowScrolling: 'touch'
+        }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
         {displayPages.map((page, index) => {
           if (page.type === 'meta' && story) { // Render Meta Page
             return (
-              <div key="meta-page" className="w-full h-full flex-shrink-0 snap-center flex flex-col items-center justify-center p-4 md:p-8 relative text-ink dark:text-ink-light bg-paper dark:bg-paper-dark overflow-y-auto">
+              <div key="meta-page" className="w-full h-full flex-shrink-0 snap-center flex flex-col items-center justify-center p-4 md:p-8 relative text-ink dark:text-ink-light bg-paper dark:bg-paper-dark">
                 <div className="relative z-10 flex flex-col items-center justify-center text-center w-full max-w-2xl space-y-4 md:space-y-6 py-8">
                   {story.cover_image_url && (
                     <div className="w-48 h-64 md:w-60 md:h-80 rounded-lg shadow-xl overflow-hidden mb-4 transform hover:scale-105 transition-transform duration-300 border border-border dark:border-border">
@@ -348,11 +369,13 @@ export default function StoryContainer({
           if (!actualPage) return null; // Should not happen if displayPages is correct
 
           return (
-            <div key={`story-page-${storyPageIndex}`} className="w-full h-full flex-shrink-0 snap-center flex flex-col items-center justify-center p-2 sm:p-4 md:p-8 overflow-y-auto bg-paper dark:bg-paper-dark">
+            <div key={`story-page-${storyPageIndex}`} className="w-full h-full flex-shrink-0 snap-center flex flex-col items-start justify-start p-2 sm:p-4 md:p-8 overflow-y-auto bg-paper dark:bg-paper-dark">
               {actualPage.type === 'image' && actualPage.image && (
-                <Image src={actualPage.image} alt={actualPage.image_alt || `Page ${storyPageIndex + 1}`} width={800} height={600} className="max-w-full max-h-[calc(100vh-8rem)] md:max-h-[calc(100vh-10rem)] object-contain rounded-md shadow-sm mb-4" />
+                <div className="w-full flex justify-center mb-4">
+                  <Image src={actualPage.image} alt={actualPage.image_alt || `Page ${storyPageIndex + 1}`} width={800} height={600} className="max-w-full max-h-[calc(100vh-8rem)] md:max-h-[calc(100vh-10rem)] object-contain rounded-md shadow-sm" />
+                </div>
               )}
-              <div className="prose dark:prose-invert max-w-prose text-justify leading-relaxed text-ink dark:text-ink-light">
+              <div className="prose dark:prose-invert max-w-prose mx-auto text-justify leading-relaxed text-ink dark:text-ink-light">
                 {actualPage.content.map((paragraph, pIndex) => <p key={pIndex}>{paragraph}</p>)}
               </div>
             </div>
@@ -386,7 +409,7 @@ export default function StoryContainer({
       
       {/* Right Action Bar (TikTok Style) - Always visible if showStoryControls */} 
       {showStoryControls && (
-        <div className={`absolute right-2 top-1/2 -translate-y-1/2 md:top-auto md:translate-y-0 md:bottom-4 md:right-4 flex flex-col items-center space-y-3 z-20 text-white`}>
+        <div className={`absolute right-2 top-1/2 -translate-y-1/2 md:top-1/2 md:translate-y-[-50%] flex flex-col items-center space-y-4 z-20 text-white`}>
           {story.author?.username && story.author?.avatar && (
              <div className="relative group mb-1">
               <Link href={`/profile/${story.author.username}`} passHref legacyBehavior>
@@ -406,19 +429,27 @@ export default function StoryContainer({
             </div>
           )}
           
-          <button onClick={toggleLike} className="flex flex-col items-center hover:text-red-400 transition-colors">
-            <Heart size={30} className={`p-1 rounded-full ${isLiked ? 'text-red-500 fill-red-500 bg-white/20' : 'bg-black/40 hover:bg-black/60 backdrop-blur-sm'}`} /> 
-            <span className="text-xs mt-1 font-semibold">{formatCount(likeCount)}</span>
+          <button onClick={toggleLike} className="flex flex-col items-center transition-colors">
+            <div className={`p-2 rounded-full ${isLiked ? 'bg-red-500 text-white' : 'bg-black/40 hover:bg-black/60'} transition-colors`}>
+              <Heart size={24} className={isLiked ? 'fill-current' : ''} />
+            </div>
+            <span className="text-xs mt-1 font-medium">{formatCount(likeCount)}</span>
           </button>
-          <button onClick={toggleComments} className="flex flex-col items-center hover:text-blue-400 transition-colors">
-            <MessageCircle size={30}  className="p-1 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-sm"/> 
-            <span className="text-xs mt-1 font-semibold">{formatCount(commentCount)}</span>
+          <button onClick={toggleComments} className="flex flex-col items-center transition-colors">
+            <div className="p-2 rounded-full bg-black/40 hover:bg-black/60 transition-colors">
+              <MessageCircle size={24} />
+            </div>
+            <span className="text-xs mt-1 font-medium">{formatCount(commentCount)}</span>
           </button>
-          <button onClick={toggleBookmark} className="flex flex-col items-center hover:text-yellow-400 transition-colors">
-            <Bookmark size={30} className={`p-1 rounded-full ${isBookmarked ? 'text-yellow-500 fill-yellow-500 bg-white/20' : 'bg-black/40 hover:bg-black/60 backdrop-blur-sm'}`} />
+          <button onClick={toggleBookmark} className="flex flex-col items-center transition-colors">
+            <div className={`p-2 rounded-full ${isBookmarked ? 'bg-yellow-500 text-white' : 'bg-black/40 hover:bg-black/60'} transition-colors`}>
+              <Bookmark size={24} className={isBookmarked ? 'fill-current' : ''} />
+            </div>
           </button>
-          <button onClick={handleShare} className="flex flex-col items-center hover:text-green-400 transition-colors">
-            <Share2 size={30} className="p-1 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-sm"/>
+          <button onClick={handleShare} className="flex flex-col items-center transition-colors">
+            <div className="p-2 rounded-full bg-black/40 hover:bg-black/60 transition-colors">
+              <Share2 size={24} />
+            </div>
           </button>
 
           <button onClick={() => setShowStoryControls(!showStoryControls)} className="p-2 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-sm">
