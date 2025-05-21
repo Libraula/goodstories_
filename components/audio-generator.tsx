@@ -61,8 +61,8 @@ export default function AudioGenerator({ story, onAudioGenerated }: AudioGenerat
 
     setIsGenerating(true)
     toast({
-      title: "Generating audio...",
-      description: "This may take up to 90 seconds for longer stories.",
+      title: "Generating audio with Gemini AI...",
+      description: "This may take up to 90 seconds. You'll be able to play the audio when it's ready.",
       variant: "default",
     })
 
@@ -139,8 +139,8 @@ export default function AudioGenerator({ story, onAudioGenerated }: AudioGenerat
         setAudioUrl(data.audioUrl, story.id)
 
         toast({
-          title: "Audio generated successfully!",
-          description: `Your story now has audio in the ${VOICES.find((v) => v.id === selectedVoice)?.name || selectedVoice} voice.`,
+          title: "✨ Audio generated successfully!",
+          description: `Your story now has professional narration in the ${VOICES.find((v) => v.id === selectedVoice)?.name || selectedVoice} voice. Press the audio button to listen.`,
           variant: "default",
         })
 
