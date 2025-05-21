@@ -7,8 +7,7 @@ const nextConfig = {
   },
   // Disable static optimization for specific pages
   experimental: {
-    // This ensures not-found is rendered at runtime
-    missingSuspenseWithCSRBailout: false,
+    // Add only valid Next.js 15.x experimental options here if needed
   },
   eslint: {
     ignoreDuringBuilds: true,

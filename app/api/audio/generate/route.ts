@@ -12,10 +12,10 @@ const timeoutPromise = (timeoutMs: number) => {
   });
 };
 
-// Set a reasonable timeout for the entire operation (90 seconds)
-const OPERATION_TIMEOUT_MS = 90000;
+// Set a reasonable timeout for the entire operation (60 seconds for Vercel hobby plan)
+const OPERATION_TIMEOUT_MS = 55000; // Use 55 seconds to allow for some processing overhead
 
-export const maxDuration = 300; // Allow up to 5 minutes (Vercel Edge Function limit)
+export const maxDuration = 60; // Maximum allowed for Vercel hobby plan
 
 export async function POST(request: NextRequest) {
   try {
@@ -73,8 +73,8 @@ export async function POST(request: NextRequest) {
       storyId = `temp_${Date.now()}`;
     }
 
-    // Limit text length to avoid API limits
-    const maxLength = 4000;
+    // Limit text length to avoid API limits and timeout issues
+    const maxLength = 2000; // Reduced to help stay within 60-second limit
     const truncatedText = text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
 
     // Initialize Google Gemini - Check for API key first

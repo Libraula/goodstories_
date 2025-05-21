@@ -4,7 +4,7 @@
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 9999;
+  z-index: 50;
   display: flex;
   justify-content: center;
   pointer-events: none;
@@ -12,14 +12,14 @@
 
 .shared-audio-player {
   position: fixed;
-  z-index: 9999;
+  z-index: 50;
   display: flex;
   justify-content: center;
   pointer-events: none;
 }
 
 .shared-audio-player.mobile {
-  bottom: 80px;
+  bottom: 100px;
   left: 0;
   right: 0;
 }
@@ -181,12 +181,13 @@
 /* Mobile specific styles */
 @media (max-width: 768px) {
   .fixed-audio-player {
-    bottom: 60px; /* Adjust for mobile navigation */
+    bottom: 100px;
   }
 
   .tiktok-audio-player {
     height: 32px;
     padding: 0 8px;
+    max-width: 80%;
   }
 
   .audio-control-btn {
@@ -197,6 +198,10 @@
   .audio-time {
     min-width: 36px;
     font-size: 10px;
+  }
+  
+  .story-pagination {
+    margin-bottom: 140px;
   }
 }
 

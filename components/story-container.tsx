@@ -909,7 +909,7 @@ export default function StoryContainer({
 
       {/* Action buttons - update z-index and positioning for fullscreen */}
       <div
-        className={`action-buttons fixed ${isFullScreen ? "bottom-20 right-6" : "bottom-36 right-4"} flex flex-col ${isFullScreen ? "gap-4" : "gap-3"} z-[110] transition-all duration-300 ${showActionIcons && isActive ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        className={`action-buttons fixed ${isFullScreen ? "bottom-20 right-6" : "bottom-[170px] right-4"} flex flex-col ${isFullScreen ? "gap-4" : "gap-3"} z-[110] transition-all duration-300 ${showActionIcons && isActive ? "opacity-100" : "opacity-0 pointer-events-none"}`}
       >
         <button
           onClick={toggleLike}
@@ -1006,7 +1006,7 @@ export default function StoryContainer({
       {/* Eye toggle button - update positioning for fullscreen */}
       {isActive && (
         <button
-          className={`reading-mode-toggle fixed ${isFullScreen ? "bottom-[15px] z-[120]" : "bottom-24 z-20"} right-4 w-10 h-10 rounded-full flex items-center justify-center bg-highlight text-white border border-paper-dark/20 dark:border-paper/20 transition-all shadow-md`}
+          className={`reading-mode-toggle fixed ${isFullScreen ? "bottom-[45px] z-[120]" : "bottom-[160px] z-20"} right-4 w-10 h-10 rounded-full flex items-center justify-center bg-highlight text-white border border-paper-dark/20 dark:border-paper/20 transition-all shadow-md`}
           onClick={toggleActionIcons}
           aria-label={showActionIcons ? "Hide action icons" : "Show action icons"}
         >
@@ -1017,7 +1017,7 @@ export default function StoryContainer({
       {/* Page indicator - update positioning for fullscreen */}
       {isActive && (
         <div
-          className={`page-indicator fixed ${isFullScreen ? "bottom-[15px] z-[120]" : "bottom-24 z-20"} left-1/2 transform -translate-x-1/2 px-3 py-1 rounded-full bg-highlight text-white font-bold border border-paper-dark/20 dark:border-paper/20 text-xs shadow-md`}
+          className={`page-indicator fixed ${isFullScreen ? "bottom-[45px] z-[120]" : "bottom-[160px] z-20"} left-1/2 transform -translate-x-1/2 px-3 py-1 rounded-full bg-highlight text-white font-bold border border-paper-dark/20 dark:border-paper/20 text-xs shadow-md`}
         >
           {currentPage + 1} / {story.pages.length}
         </div>
