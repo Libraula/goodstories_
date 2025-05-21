@@ -96,8 +96,23 @@ export default function AudioGenerator({ story, onAudioGenerated }: AudioGenerat
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to generate audio")
+        let detailedError = "Failed to generate audio. Server returned an error."; // Default message
+        try {
+          const errorData = await response.json();
+          detailedError = errorData.details || errorData.error || detailedError;
+        } catch (e) {
+          console.error("Could not parse error response as JSON:", e);
+          // Try to get text from the response if JSON parsing fails
+          try {
+            const textResponse = await response.text();
+            if (textResponse) {
+              detailedError = textResponse;
+            }
+          } catch (textErr) {
+            console.error("Could not get text from error response:", textErr);
+          }
+        }
+        throw new Error(detailedError);
       }
 
       const data = await response.json()

@@ -15,7 +15,19 @@ export const createClient = () => {
     return createMockClient()
   }
 
-  return createBrowserClient(supabaseUrl, supabaseKey)
+  return createBrowserClient(supabaseUrl, supabaseKey, {
+    global: {
+      headers: {
+        'Accept': 'application/json',
+      },
+    },
+    auth: {
+      flowType: 'pkce',
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true
+    }
+  })
 }
 
 // Helper function to create a mock client

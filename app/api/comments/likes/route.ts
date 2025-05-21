@@ -1,26 +1,58 @@
 import { NextResponse } from "next/server"
 import { v4 as uuidv4 } from "uuid"
-import { isAuthenticated } from "@/utils/supabase/server"
+import { createServerClient } from "@supabase/ssr"
+import { cookies } from "next/headers"
 
 // POST: Like a comment
 export async function POST(request: Request) {
   try {
-    // Check if user is authenticated
-    const { isAuthenticated: userIsAuthenticated, userId, supabase } = await isAuthenticated()
+    // Create a Supabase client with cookies
+    const cookieStore = cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+          set(name: string, value: string, options: any) {
+            /* No-op for API routes */
+          },
+          remove(name: string, options: any) {
+            /* No-op for API routes */
+          },
+        },
+      },
+    )
 
-    if (!userIsAuthenticated || !userId) {
+    // Check if user is authenticated
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
       return NextResponse.json(
         { error: "Please log in to like comments", message: "authentication_required" },
         { status: 401 },
       )
     }
 
+    const userId = user.id
+
     // Get the comment ID from the request body
-    const { commentId } = await request.json().catch(() => ({}))
+    let requestData;
+    try {
+      requestData = await request.json()
+    } catch (e) {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+    }
+    
+    const { commentId } = requestData
 
     if (!commentId) {
       return NextResponse.json({ error: "Comment ID is required" }, { status: 400 })
     }
+
+    console.log(`Liking comment: ${commentId}, user: ${userId}`)
 
     // Check if the comment exists
     const { data: commentExists, error: commentError } = await supabase
@@ -69,32 +101,58 @@ export async function POST(request: Request) {
     }
 
     // Increment the comment's like count
-    const { error: rpcError } = await supabase.rpc("increment_comment_likes", { comment_id: commentId })
-
-    if (rpcError) {
+    try {
+      await supabase.rpc("increment_comment_likes", { comment_id: commentId })
+      console.log(`Successfully liked comment: ${commentId}`)
+    } catch (rpcError) {
       console.error("Error incrementing like count:", rpcError)
       // Continue even if this fails, the like was still created
     }
 
-    return NextResponse.json({ message: "Comment liked successfully" }, { status: 201 })
+    return NextResponse.json({ message: "Comment liked successfully", status: "success" }, { status: 201 })
   } catch (error) {
     console.error("Error in comment likes POST endpoint:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ 
+      error: "Internal server error", 
+      details: error instanceof Error ? error.message : "Unknown error"
+    }, { status: 500 })
   }
 }
 
 // DELETE: Unlike a comment
 export async function DELETE(request: Request) {
   try {
-    // Check if user is authenticated
-    const { isAuthenticated: userIsAuthenticated, userId, supabase } = await isAuthenticated()
+    // Create a Supabase client with cookies
+    const cookieStore = cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+          set(name: string, value: string, options: any) {
+            /* No-op for API routes */
+          },
+          remove(name: string, options: any) {
+            /* No-op for API routes */
+          },
+        },
+      },
+    )
 
-    if (!userIsAuthenticated || !userId) {
+    // Check if user is authenticated
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
       return NextResponse.json(
         { error: "Please log in to unlike comments", message: "authentication_required" },
         { status: 401 },
       )
     }
+
+    const userId = user.id
 
     // Get the comment ID from the query parameters
     const { searchParams } = new URL(request.url)
@@ -103,6 +161,8 @@ export async function DELETE(request: Request) {
     if (!commentId) {
       return NextResponse.json({ error: "Comment ID is required" }, { status: 400 })
     }
+
+    console.log(`Unliking comment: ${commentId}, user: ${userId}`)
 
     // Delete the like
     const { error: deleteError, count } = await supabase
@@ -118,19 +178,23 @@ export async function DELETE(request: Request) {
 
     // Only decrement if a like was actually deleted
     if (count && count > 0) {
-      const { error: rpcError } = await supabase.rpc("decrement_comment_likes", { comment_id: commentId })
-
-      if (rpcError) {
+      try {
+        await supabase.rpc("decrement_comment_likes", { comment_id: commentId })
+        console.log(`Successfully unliked comment: ${commentId}`)
+      } catch (rpcError) {
         console.error("Error decrementing like count:", rpcError)
         // Continue even if this fails, the like was still deleted
       }
 
-      return NextResponse.json({ message: "Comment unliked successfully" }, { status: 200 })
+      return NextResponse.json({ message: "Comment unliked successfully", status: "success" }, { status: 200 })
     } else {
-      return NextResponse.json({ message: "Like not found" }, { status: 404 })
+      return NextResponse.json({ message: "Like not found", status: "warning" }, { status: 404 })
     }
   } catch (error) {
     console.error("Error in comment likes DELETE endpoint:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ 
+      error: "Internal server error", 
+      details: error instanceof Error ? error.message : "Unknown error"
+    }, { status: 500 })
   }
 }

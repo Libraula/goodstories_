@@ -14,6 +14,8 @@ import {
   Maximize,
   Minimize,
   Volume2,
+  Pause,
+  Play,
 } from "lucide-react"
 import type { Story } from "@/lib/types"
 import CommentsSection from "./comments-section"
@@ -86,27 +88,43 @@ export default function StoryContainer({
   // Constant for transition duration in milliseconds
   const TRANSITION_DURATION = 300
 
-  // Update audioUrl when story changes
-  useEffect(() => {
-    if (story) {
-      setAudioUrl(story.audio_url || "")
-      // Reset autoplay attempt flag when story changes
-      hasAttemptedAutoplay.current = false
-    }
-  }, [story, setAudioUrl])
+  // REMOVED: No longer automatically set audio URL when story changes
+  // Now we'll only set the audio URL when explicitly requested by the user
 
-  // Auto-play audio when story becomes active
+  // Auto-play audio when story becomes active - simplified approach
   useEffect(() => {
+    // Only attempt autoplay when story is active, has audio, and we haven't tried yet
     if (isActive && activeAudio && story?.audio_url && !hasAttemptedAutoplay.current) {
-      // Try to auto-play audio when story becomes active
-      setTimeout(() => {
-        if (!isPlaying) {
-          togglePlay()
-        }
-        hasAttemptedAutoplay.current = true
-      }, 500) // Small delay to ensure everything is loaded
+      // Mark as attempted immediately to prevent duplicate attempts
+      hasAttemptedAutoplay.current = true;
+      
+      // Set audio URL and play with proper delays
+      const autoplayTimer = setTimeout(() => {
+        console.log("Setting up audio for story:", story.id);
+        
+                 // Set URL
+         if (story.audio_url) {
+           setAudioUrl(story.audio_url);
+         }
+        
+        // Wait for audio to be ready before playing
+        setTimeout(() => {
+          if (!isPlaying) {
+            console.log("Attempting to play audio");
+            togglePlay();
+            
+            toast({
+              title: "Audio Ready",
+              description: "Click play to listen to narration",
+              variant: "default",
+            });
+          }
+        }, 500);
+      }, 300);
+      
+      return () => clearTimeout(autoplayTimer);
     }
-  }, [isActive, activeAudio, story, isPlaying, togglePlay])
+  }, [isActive, activeAudio, story?.id, isPlaying, togglePlay, toast, setAudioUrl])
 
   // Determine if user is author - must be inside an effect to avoid conditional hook
   useEffect(() => {
@@ -561,8 +579,24 @@ export default function StoryContainer({
   // Function to handle audio playback or generation
   const handleAudio = useCallback(() => {
     if (story?.audio_url) {
-      // If audio exists, toggle play/pause
-      togglePlay()
+      // Simple toggle - if playing, pause; if paused, play
+      if (isPlaying) {
+        togglePlay(); // This will pause
+      } else {
+        // First set URL directly - no need to clear first with our new implementation
+        setAudioUrl(story.audio_url);
+        
+        // Brief delay before play
+        setTimeout(() => {
+          togglePlay();
+          
+          toast({
+            title: "Playing audio",
+            description: "Story narration started",
+            variant: "default",
+          });
+        }, 200);
+      }
     } else if (isAuthor) {
       // Only show audio generator if user is the author
       setShowAudioGenerator(true)
@@ -573,7 +607,7 @@ export default function StoryContainer({
         variant: "default",
       })
     }
-  }, [story, isAuthor, togglePlay, toast])
+  }, [story, isAuthor, isPlaying, togglePlay, toast, setAudioUrl])
 
   // Format count for display (e.g., 1000 -> 1K)
   const formatCount = (count: number | undefined | null): string => {
@@ -723,9 +757,53 @@ export default function StoryContainer({
                   <span>{story.read_time}</span>
                   <span className="inline-block w-1 h-1 rounded-full bg-ink-light dark:bg-ink-light mx-1"></span>
                   <span>{new Date(story.created_at).toLocaleDateString()}</span>
+                  {story.audio_url && (
+                    <>
+                      <span className="inline-block w-1 h-1 rounded-full bg-ink-light dark:bg-ink-light mx-1"></span>
+                      <span className="flex items-center gap-1 text-highlight">
+                        <Volume2 className="h-3 w-3" /> Audio
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
+
+            {/* Audio controls */}
+            {story.audio_url && (
+              <div className="flex items-center">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    
+                    if (story.audio_url) {
+                      // Simple approach: if playing, just toggle
+                      if (isPlaying) {
+                        togglePlay(); // This will pause
+                      } else {
+                        // First set the URL (only once)
+                        setAudioUrl(story.audio_url);
+                        
+                        // Small delay to ensure URL is set before playing
+                        setTimeout(() => {
+                          togglePlay();
+                        }, 200);
+                      }
+                    }
+                  }}
+                  className={`audio-button p-1.5 ${isPlaying ? 'audio-playing' : ''} w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20 ${isPlaying ? "bg-highlight text-white" : ""}`}
+                  aria-label={isPlaying ? "Pause audio" : "Play audio"}
+                >
+                  {isPlaying ? (
+                    <div className="flex items-center">
+                      <Pause className="h-4 w-4" />
+                    </div>
+                  ) : (
+                    <Play className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -895,42 +973,6 @@ export default function StoryContainer({
           {isFullScreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
         </button>
 
-        {/* Audio Button - Now part of the collapsible action buttons */}
-        <button
-          onClick={handleAudio}
-          className={`action-button w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md ${
-            story.audio_url && isPlaying
-              ? "bg-highlight text-white"
-              : "bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20"
-          }`}
-          aria-label={
-            story.audio_url
-              ? isPlaying
-                ? "Pause audio"
-                : "Play audio"
-              : isAuthor
-                ? "Generate audio"
-                : "No audio available"
-          }
-        >
-          {story.audio_url ? (
-            isPlaying ? (
-              <div className="flex items-center justify-center">
-                <div className="sound-wave">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </div>
-              </div>
-            ) : (
-              <Volume2 className="h-5 w-5" />
-            )
-          ) : (
-            <Volume2 className="h-5 w-5" />
-          )}
-        </button>
-
         {/* Author Profile Button (only if not full screen) */}
         {!isFullScreen && (
           <button
@@ -988,7 +1030,7 @@ export default function StoryContainer({
           onClick={() => setShowComments(false)}
         >
           <div
-            className="bg-paper dark:bg-paper-dark w-full sm:w-[600px] max-h-[80vh] rounded-t-xl overflow-hidden comments-section"
+            className="bg-paper dark:bg-paper-dark w-full sm:w-[600px] max-h-[90vh] rounded-t-xl overflow-hidden shadow-lg border border-paper-dark/10 dark:border-paper/10"
             onClick={(e) => e.stopPropagation()}
           >
             <CommentsSection storyId={story.id} onClose={() => setShowComments(false)} />

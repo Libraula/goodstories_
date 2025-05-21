@@ -28,12 +28,36 @@ interface AudioCreationModalProps {
 }
 
 const VOICES = [
-  { id: "alloy", name: "Alloy", description: "Neutral and balanced" },
-  { id: "echo", name: "Echo", description: "Soft and calm" },
-  { id: "fable", name: "Fable", description: "British accent" },
-  { id: "onyx", name: "Onyx", description: "Deep and authoritative" },
-  { id: "nova", name: "Nova", description: "Warm and engaging" },
-  { id: "shimmer", name: "Shimmer", description: "Clear and expressive" },
+  { id: "zephyr", name: "Zephyr", description: "Bright" },
+  { id: "puck", name: "Puck", description: "Upbeat" },
+  { id: "charon", name: "Charon", description: "Informative" },
+  { id: "kore", name: "Kore", description: "Firm" },
+  { id: "fenrir", name: "Fenrir", description: "Excitable" },
+  { id: "leda", name: "Leda", description: "Youthful" },
+  { id: "orus", name: "Orus", description: "Firm" },
+  { id: "aoede", name: "Aoede", description: "Breezy" },
+  { id: "callirhoe", name: "Callirhoe", description: "Easy-going" },
+  { id: "autonoe", name: "Autonoe", description: "Bright" },
+  { id: "enceladus", name: "Enceladus", description: "Breathy" },
+  { id: "iapetus", name: "Iapetus", description: "Clear" },
+  { id: "umbriel", name: "Umbriel", description: "Easy-going" },
+  { id: "algieba", name: "Algieba", description: "Smooth" },
+  { id: "despina", name: "Despina", description: "Smooth" },
+  { id: "erinome", name: "Erinome", description: "Clear" },
+  { id: "algenib", name: "Algenib", description: "Gravelly" },
+  { id: "rasalgethi", name: "Rasalgethi", description: "Informative" },
+  { id: "laomedeia", name: "Laomedeia", description: "Upbeat" },
+  { id: "achernar", name: "Achernar", description: "Soft" },
+  { id: "alnilam", name: "Alnilam", description: "Firm" },
+  { id: "schedar", name: "Schedar", description: "Even" },
+  { id: "gacrux", name: "Gacrux", description: "Mature" },
+  { id: "pulcherrima", name: "Pulcherrima", description: "Forward" },
+  { id: "achird", name: "Achird", description: "Friendly" },
+  { id: "zubenelgenubi", name: "Zubenelgenubi", description: "Casual" },
+  { id: "vindemiatrix", name: "Vindemiatrix", description: "Gentle" },
+  { id: "sadachbia", name: "Sadachbia", description: "Lively" },
+  { id: "sadaltager", name: "Sadaltager", description: "Knowledgeable" },
+  { id: "sulafar", name: "Sulafar", description: "Warm" },
 ]
 
 // Use the client-side Supabase client
@@ -49,7 +73,7 @@ export default function AudioCreationModal({
   onClose,
 }: AudioCreationModalProps) {
   // State for AI generation
-  const [selectedVoice, setSelectedVoice] = useState("nova")
+  const [selectedVoice, setSelectedVoice] = useState("zephyr")
   const [isGenerating, setIsGenerating] = useState(false)
 
   // State for recording
@@ -287,6 +311,21 @@ export default function AudioCreationModal({
 
   // Generate AI audio
   const generateAudio = async () => {
+    // --- BEGIN ADDED CLIENT-SIDE LOGGING AND CHECK FOR storyId ---
+    console.log("[AudioCreationModal] Attempting to generate audio. storyId:", storyId, "storyText (first 100 chars):", storyText?.substring(0, 100));
+
+    if (!storyId) {
+      console.error("[AudioCreationModal] Error: storyId is missing. Cannot generate audio.");
+      toast({
+        title: "Generation Failed",
+        description: "Cannot generate audio: Story ID is missing. Please try again or contact support.",
+        variant: "destructive",
+      });
+      setIsGenerating(false); // Ensure loading state is reset
+      return;
+    }
+    // --- END ADDED CLIENT-SIDE LOGGING AND CHECK FOR storyId ---
+
     setIsGenerating(true)
 
     try {
@@ -307,8 +346,23 @@ export default function AudioCreationModal({
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to generate audio")
+        let detailedError = "Failed to generate audio. Server returned an error."; // Default message
+        try {
+          const errorData = await response.json();
+          detailedError = errorData.details || errorData.error || detailedError;
+        } catch (e) {
+          console.error("Could not parse error response as JSON:", e);
+          // Try to get text from the response if JSON parsing fails
+          try {
+            const textResponse = await response.text();
+            if (textResponse) {
+              detailedError = textResponse;
+            }
+          } catch (textErr) {
+            console.error("Could not get text from error response:", textErr);
+          }
+        }
+        throw new Error(detailedError);
       }
 
       const data = await response.json()
