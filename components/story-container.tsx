@@ -858,42 +858,46 @@ export default function StoryContainer({
               key={index}
               className={`story-page ${
                 readingMode === "page" ? "min-w-full snap-center" : "w-full snap-start"
-              } p-4 flex flex-col overflow-hidden`}
+              } px-2 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col overflow-hidden`}
               style={!isFullScreen ? { height: readingMode === "page" ? `${containerHeight}px` : "auto" } : {}}
             >
-              <div className="story-page-content h-full flex flex-col">
+              <div className="story-page-content h-full flex flex-col overflow-hidden">
                 <div
                   ref={index === currentPage ? contentRef : null}
-                  className={`story-content-wrapper lg:max-w-3xl lg:mx-auto pt-8 pb-16 flex-1`}
+                  className={`story-content-wrapper w-full sm:w-[95%] md:w-[90%] lg:w-[85%] xl:w-[75%] mx-auto pt-4 sm:pt-6 lg:pt-8 pb-16 flex-1`}
                 >
                   {index === 0 && (
                     <h2
-                      className={`story-title text-xl md:text-2xl lg:text-3xl mb-3 text-highlight dark:text-highlight font-bold leading-tight ${isFullScreen ? "px-4" : ""}`}
+                      className={`story-title text-xl md:text-2xl lg:text-3xl mb-2 sm:mb-3 md:mb-4 text-highlight dark:text-highlight font-bold leading-tight ${isFullScreen ? "px-2 sm:px-4" : ""}`}
                     >
                       {story.title}
                     </h2>
                   )}
                   {page.type === "text" ? (
                     <div
-                      className="story-text leading-relaxed mb-4 text-ink dark:text-ink px-1 wysiwyg-content"
+                      className="story-text leading-relaxed mb-4 text-ink dark:text-ink wysiwyg-content w-full"
                       style={{
                         fontSize: "var(--story-font-size)",
                         maxHeight: !isFullScreen && readingMode === "page" ? `${containerHeight - 120}px` : "none",
+                        lineHeight: "1.7",
+                        textAlign: "justify",
+                        hyphens: "auto",
                       }}
                     >
                       {page.content.map((paragraph, pIndex) => (
-                        <div key={pIndex} className="mb-4 wysiwyg-paragraph">
+                        <div key={pIndex} className="wysiwyg-paragraph mb-4 last:mb-0 w-full">
                           {/* Use dangerouslySetInnerHTML to render formatted content */}
                           <div
+                            className="w-full"
                             dangerouslySetInnerHTML={{
                               __html: paragraph
                                 .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") // Bold
                                 .replace(/\*(.*?)\*/g, "<em>$1</em>") // Italic
-                                .replace(/# (.*?)(?:\n|$)/g, '<h1 class="text-2xl font-bold mb-2">$1</h1>') // H1
-                                .replace(/## (.*?)(?:\n|$)/g, '<h2 class="text-xl font-bold mb-2">$1</h2>') // H2
+                                .replace(/# (.*?)(?:\n|$)/g, '<h1 class="text-2xl font-bold mb-2 w-full">$1</h1>') // H1
+                                .replace(/## (.*?)(?:\n|$)/g, '<h2 class="text-xl font-bold mb-2 w-full">$1</h2>') // H2
                                 .replace(
                                   /> (.*?)(?:\n|$)/g,
-                                  '<blockquote class="border-l-4 border-highlight pl-4 italic text-ink-light">$1</blockquote>',
+                                  '<blockquote class="border-l-4 border-highlight pl-4 italic text-ink-light w-full">$1</blockquote>',
                                 ) // Quote
                                 .replace(/\n/g, "<br>"), // Line breaks
                             }}
@@ -903,14 +907,14 @@ export default function StoryContainer({
                     </div>
                   ) : (
                     <>
-                      <div className="my-4">
+                      <div className="my-4 w-full flex flex-col items-center">
                         <img
                           src={page.image || "/placeholder.svg"}
                           alt={page.image_alt || "Story image"}
-                          className="w-full h-auto rounded-lg"
+                          className="rounded-lg max-h-[40vh] sm:max-h-[45vh] md:max-h-[50vh] lg:max-h-[55vh] object-contain w-auto max-w-full"
                         />
                         {page.content.map((caption, idx) => (
-                          <p key={idx} className="text-sm text-ink-light dark:text-ink-light mt-2">
+                          <p key={idx} className="text-sm text-ink-light dark:text-ink-light mt-2 text-center w-full">
                             {caption}
                           </p>
                         ))}
@@ -920,7 +924,7 @@ export default function StoryContainer({
                 </div>
 
                 {index === story.pages.length - 1 && (
-                  <div className="story-meta mt-auto pt-2 border-t border-dashed border-paper-dark/20 dark:border-paper/20">
+                  <div className="story-meta mt-auto pt-2 border-t border-dashed border-paper-dark/20 dark:border-paper/20 w-full sm:w-[95%] md:w-[90%] lg:w-[85%] xl:w-[75%] mx-auto">
                     <div className="story-tags flex flex-wrap gap-2 mb-2">
                       {story.tags.map((tag, tagIndex) => (
                         <span

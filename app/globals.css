@@ -262,10 +262,11 @@ body {
 /* Story pages scrolling - both directions */
 .story-pages {
   -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth; /* Changed to smooth for better transitions */
+  scroll-behavior: smooth;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  overscroll-behavior: contain; /* Prevent overscroll */
+  overscroll-behavior: contain;
+  width: 100%;
 }
 
 .story-pages::-webkit-scrollbar {
@@ -274,7 +275,38 @@ body {
 
 /* Optimize for touch */
 .story-page {
-  scroll-snap-stop: always; /* Force snap to stop at each page */
+  scroll-snap-stop: always;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Story content fills available space */
+.story-page-content {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Story text styles for PDF-like appearance */
+.story-text {
+  width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: normal;
+  text-align: justify;
+  hyphens: auto;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Ensure content fills available width */
+@media (max-width: 639px) {
+  .story-text {
+    padding-left: 0;
+    padding-right: 0;
+  }
 }
 
 /* Responsive image sizing */
@@ -296,6 +328,105 @@ body {
   }
 }
 
+/* Improved responsive story content */
+.story-content-wrapper {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding-bottom: 20px;
+  /* Better reading experience with max-width control */
+  max-width: 100%;
+  margin: 0 auto;
+  /* Improved text readability */
+  font-size: clamp(1rem, 0.95rem + 0.25vw, 1.25rem);
+  line-height: 1.7;
+  overflow-x: hidden;
+  /* PDF-like text presentation */
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Mobile - optimize for smaller screens */
+@media (max-width: 639px) {
+  .story-content-wrapper {
+    width: 95%;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+  }
+  
+  .story-page {
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+  }
+  
+  .wysiwyg-paragraph {
+    margin-bottom: 0.75rem;
+  }
+}
+
+/* Tablets and small desktops */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .story-content-wrapper {
+    width: 90%;
+  }
+}
+
+/* Large desktops */
+@media (min-width: 1024px) {
+  .story-content-wrapper {
+    width: 85%;
+    max-width: 65ch; /* Optimal reading width */
+  }
+}
+
+.story-content-wrapper::-webkit-scrollbar {
+  display: none;
+}
+
+/* Styled paragraphs in stories for better readability */
+.wysiwyg-paragraph {
+  margin-bottom: 1.25rem;
+  width: 100%;
+  text-wrap: pretty;
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+/* PDF-like text styling */
+.wysiwyg-content {
+  width: 100%;
+  text-align: justify;
+  hyphens: auto;
+}
+
+.wysiwyg-content h1,
+.wysiwyg-content h2 {
+  width: 100%;
+  text-align: left;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+/* Optimize blockquotes for different screen sizes */
+.wysiwyg-content blockquote {
+  margin: 1.5rem 0;
+  padding-left: 1rem;
+  font-style: italic;
+  border-left: 3px solid var(--highlight);
+  width: 100%;
+  text-align: left;
+}
+
+@media (min-width: 768px) {
+  .wysiwyg-content blockquote {
+    margin: 2rem 1rem;
+    padding-left: 1.5rem;
+  }
+}
+
 /* Pagination container styling */
 .pagination-container {
   transition: all 0.3s ease;
@@ -308,19 +439,6 @@ body {
 
 .pagination-container button.active {
   transform: scale(1.1);
-}
-
-/* Optimize content scrolling */
-.story-content-wrapper {
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  padding-bottom: 20px;
-}
-
-.story-content-wrapper::-webkit-scrollbar {
-  display: none;
 }
 
 /* Action icons styling */

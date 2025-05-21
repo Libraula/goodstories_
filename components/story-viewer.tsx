@@ -251,7 +251,7 @@ export default function StoryViewer({ stories, initialIndex, onClose }: StoryVie
         {stories.map((story, index) => (
           <div
             key={index}
-            className={`story-item min-w-full min-h-full ${readingMode === "page" ? "" : "inline-block"}`}
+            className={`story-item min-w-full min-h-full ${readingMode === "page" ? "" : "inline-block"} sm:px-1 md:px-2 lg:px-3 w-full box-border overflow-hidden`}
           >
             <StoryContainer
               story={story}

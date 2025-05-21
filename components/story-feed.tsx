@@ -618,7 +618,7 @@ export default function StoryFeed() {
             stories.map((story, index) => (
               <div
                 key={index}
-                className={`story-wrapper ${readingMode === "page" ? "min-h-full snap-start" : "min-w-full snap-center"}`}
+                className={`story-wrapper ${readingMode === "page" ? "min-h-full snap-start" : "min-w-full snap-center"} sm:px-1 md:px-2 lg:px-4 w-full box-border overflow-hidden`}
               >
                 <StoryContainer
                   story={story}

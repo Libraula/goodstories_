@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    const model = "gemini-2.5-pro-preview-tts"; // Using the proper TTS model
+    const model = "gemini-2.5-flash-preview-tts"; // Using the proper TTS model
     const contents = [
       {
         role: "user",
