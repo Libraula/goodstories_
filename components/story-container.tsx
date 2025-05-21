@@ -27,8 +27,9 @@ import { handleAuthAction } from "../lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { useAudio } from "@/contexts/audio-context"
 
-// Add this import
+// Add these imports
 import AudioGenerator from "./audio-generator"
+import { SharedAudioPlayer } from "./shared-audio-player"
 
 // Use the client-side Supabase client
 const supabase = createClient()
@@ -71,6 +72,7 @@ export default function StoryContainer({
   const [showAudioGenerator, setShowAudioGenerator] = useState(false)
   const [isStoryLoading, setIsStoryLoading] = useState(true)
   const [isAuthor, setIsAuthor] = useState(false) // Moved up to be with other state declarations
+  const [isDesktop, setIsDesktop] = useState(false) // Add state to track desktop view
 
   // Initialize all refs at the top level
   const pagesContainerRef = useRef<HTMLDivElement>(null)
@@ -102,10 +104,10 @@ export default function StoryContainer({
       const autoplayTimer = setTimeout(() => {
         console.log("Setting up audio for story:", story.id);
         
-                 // Set URL
-         if (story.audio_url) {
-           setAudioUrl(story.audio_url, story.id);
-         }
+        // Set URL
+        if (story.audio_url) {
+          setAudioUrl(story.audio_url, story.id);
+        }
         
         // Wait for audio to be ready before playing
         setTimeout(() => {
@@ -123,6 +125,12 @@ export default function StoryContainer({
       }, 300);
       
       return () => clearTimeout(autoplayTimer);
+    }
+    
+    // When story becomes inactive, reset the hasAttemptedAutoplay flag
+    // This allows audio to be played again if the user returns to this story
+    if (!isActive) {
+      hasAttemptedAutoplay.current = false;
     }
   }, [isActive, activeAudio, story?.id, isPlaying, togglePlay, toast, setAudioUrl])
 
@@ -208,6 +216,16 @@ export default function StoryContainer({
       setHasStory(true)
     }
   }, [story])
+
+  // Add body class for CSS targeting
+  useEffect(() => {
+    // Add class to body to help identify pages with story containers
+    document.body.classList.add('story-container-page');
+    
+    return () => {
+      document.body.classList.remove('story-container-page');
+    };
+  }, []);
 
   // Handle window resize
   useEffect(() => {
@@ -909,8 +927,52 @@ export default function StoryContainer({
 
       {/* Action buttons - update z-index and positioning for fullscreen */}
       <div
-        className={`action-buttons fixed ${isFullScreen ? "bottom-20 right-6" : "bottom-[170px] right-4"} flex flex-col ${isFullScreen ? "gap-4" : "gap-3"} z-[110] transition-all duration-300 ${showActionIcons && isActive ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        className={`action-buttons fixed ${isFullScreen ? "bottom-20 right-6" : "bottom-[190px] sm:bottom-[170px] lg:bottom-20 right-4 lg:right-6"} flex flex-col ${isFullScreen ? "gap-4" : "gap-3 lg:gap-4"} z-[110] transition-all duration-300 ${
+          showActionIcons || window.innerWidth >= 1024 ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
       >
+        {/* Author Profile Button - Now at the top */}
+        {!isFullScreen && (
+          <button
+            onClick={viewAuthorProfile}
+            className="action-button w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border-2 border-highlight overflow-hidden relative"
+          >
+            <Image
+              src={story.author.avatar || "/placeholder.svg"}
+              alt={story.author.name}
+              width={40}
+              height={40}
+              className="w-full h-full object-cover rounded-full"
+            />
+            {/* Plus icon circle for following - moved to bottom right */}
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                const isFollowing = e.currentTarget.classList.contains('following');
+                
+                if (isFollowing) {
+                  e.currentTarget.classList.remove('following');
+                  toast({
+                    title: "Unfollowed",
+                    description: `You've unfollowed ${story.author.name}`,
+                    variant: "default",
+                  });
+                } else {
+                  e.currentTarget.classList.add('following');
+                  toast({
+                    title: "Following",
+                    description: `You're now following ${story.author.name}`,
+                    variant: "default",
+                  });
+                }
+              }}
+              className="absolute bottom-0 right-0 w-4 h-4 rounded-full flex items-center justify-center cursor-pointer bg-highlight hover:bg-highlight/90 transition-all shadow-sm"
+            >
+              <PlusCircle className="h-2.5 w-2.5 text-white" />
+            </div>
+          </button>
+        )}
+
         <button
           onClick={toggleLike}
           className={`action-button w-10 h-10 rounded-full flex items-center justify-center relative transition-all shadow-md ${
@@ -946,61 +1008,7 @@ export default function StoryContainer({
           <Bookmark
             className={`h-5 w-5 ${isBookmarked ? "fill-current" : ""} ${isBookmarkAnimating ? "animate-ping" : ""}`}
           />
-          <span className="absolute -right-1 -top-1 bg-highlight text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-            {formatCount(bookmarkCount)}
-          </span>
         </button>
-
-        <button
-          onClick={() => {
-            toast({
-              title: "Share",
-              description: "Sharing functionality is coming soon!",
-              variant: "default",
-            })
-          }}
-          className="action-button w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20"
-        >
-          <Share2 className="h-5 w-5" />
-        </button>
-
-        {/* Full Screen Toggle Button */}
-        <button
-          onClick={toggleFullScreen}
-          className="action-button w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20"
-          aria-label={isFullScreen ? "Exit full screen" : "Enter full screen"}
-        >
-          {isFullScreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
-        </button>
-
-        {/* Author Profile Button (only if not full screen) */}
-        {!isFullScreen && (
-          <button
-            onClick={viewAuthorProfile}
-            className="action-button w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20 overflow-hidden relative"
-          >
-            <Image
-              src={story.author.avatar || "/placeholder.svg"}
-              alt={story.author.name}
-              width={40}
-              height={40}
-              className="w-full h-full object-cover"
-            />
-            <div
-              onClick={(e) => {
-                e.stopPropagation()
-                toast({
-                  title: "Follow",
-                  description: "Following functionality is coming soon!",
-                  variant: "default",
-                })
-              }}
-              className="absolute -right-1 -top-1 bg-highlight text-white text-xs rounded-full w-5 h-5 flex items-center justify-center cursor-pointer shadow-sm"
-            >
-              <PlusCircle className="h-3 w-3" />
-            </div>
-          </button>
-        )}
       </div>
 
       {/* Eye toggle button - update positioning for fullscreen */}
@@ -1020,33 +1028,6 @@ export default function StoryContainer({
           className={`page-indicator fixed ${isFullScreen ? "bottom-[45px] z-[120]" : "bottom-[160px] z-20"} left-1/2 transform -translate-x-1/2 px-3 py-1 rounded-full bg-highlight text-white font-bold border border-paper-dark/20 dark:border-paper/20 text-xs shadow-md`}
         >
           {currentPage + 1} / {story.pages.length}
-        </div>
-      )}
-
-      {/* Comments section - update for a more modern look */}
-      {showComments && (
-        <div
-          className={`fixed inset-0 bg-black/50 backdrop-blur-sm ${isFullScreen ? "z-[150]" : "z-40"} flex items-end justify-center`}
-          onClick={() => setShowComments(false)}
-        >
-          <div
-            className="bg-paper dark:bg-paper-dark w-full sm:w-[600px] max-h-[90vh] rounded-t-xl overflow-hidden shadow-lg border border-paper-dark/10 dark:border-paper/10"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <CommentsSection storyId={story.id} onClose={() => setShowComments(false)} />
-          </div>
-        </div>
-      )}
-
-      {/* Add this modal for the audio generator - only shown to authors */}
-      {showAudioGenerator && isAuthor && (
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 flex items-center justify-center p-4"
-          onClick={() => setShowAudioGenerator(false)}
-        >
-          <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <AudioGenerator story={story} onAudioGenerated={handleAudioGenerated} />
-          </div>
         </div>
       )}
     </div>

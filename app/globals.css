@@ -373,6 +373,30 @@ body {
   white-space: nowrap;
 }
 
+/* Author follow button styles */
+.absolute.following {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.absolute.following .bg-highlight {
+  display: none;
+}
+
+/* TikTok-style action buttons */
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.action-button {
+  transition: all 0.2s ease;
+}
+
+.action-button:active {
+  transform: scale(0.95);
+}
+
 /* Story meta positioning */
 .story-meta {
   margin-top: auto;
@@ -746,6 +770,30 @@ body.comments-open {
   display: flex !important;
   visibility: visible !important;
   opacity: 1 !important;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* Force-hide on non-story pages */
+body:not(.home-tab) .profile-page ~ .shared-audio-player,
+body:not(.home-tab) .bookmarks-page ~ .shared-audio-player,
+body:not(.home-tab) .discover-page ~ .shared-audio-player,
+body:not(.home-tab) .notifications-page ~ .shared-audio-player,
+body:not(.home-tab) .create-page ~ .shared-audio-player,
+body:not(.home-tab) .settings-page ~ .shared-audio-player,
+body:not(.home-tab) .search-page ~ .shared-audio-player,
+body:not(.home-tab) .editor-page ~ .shared-audio-player {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Hide audio player on non-story content */
+.shared-audio-player:not([data-has-audio="true"]) {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 /* Mobile styles */
@@ -755,9 +803,12 @@ body.comments-open {
   right: 0;
   display: flex;
   justify-content: center;
+  z-index: 999; /* Lower than z-index of action buttons */
 }
 
+/* Audio player on fixed layouts */
 .shared-audio-player.mobile .tiktok-audio-player {
+  margin-bottom: 10px;
   width: 85%;
   max-width: 320px;
   height: 36px;
@@ -773,6 +824,7 @@ body.comments-open {
 .shared-audio-player.desktop {
   bottom: 20px;
   right: 20px;
+  z-index: 999;
 }
 
 .shared-audio-player.desktop .tiktok-audio-player {
@@ -898,4 +950,25 @@ body.comments-open {
 
 .sound-wave span:nth-child(4) {
   animation-delay: 0.6s;
+}
+
+/* Fixed Action Buttons and Pagination for Desktop */
+@media (min-width: 1024px) {
+  .action-buttons {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    bottom: 20px !important;
+    right: 24px !important;
+    gap: 16px !important;
+  }
+  
+  .reading-mode-toggle,
+  .page-indicator {
+    opacity: 1 !important;
+    bottom: 45px !important;
+  }
+  
+  .reading-mode-toggle {
+    right: 24px !important;
+  }
 }

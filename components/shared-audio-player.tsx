@@ -1,59 +1,36 @@
 "use client"
 
 import type React from "react"
-import { useRef, useState, useEffect, useCallback } from "react"
+import { useRef, useState, useEffect } from "react"
 import { Play, Pause, Volume2, VolumeX } from "lucide-react"
 import { useAudio } from "@/contexts/audio-context"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { usePathname } from "next/navigation"
 
 export function SharedAudioPlayer() {
   const isMobile = useIsMobile()
-  const pathname = usePathname()
   const { audioUrl, isPlaying, currentTime, duration, isMuted, togglePlay, toggleMute, setProgress } = useAudio()
   const progressContainerRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [progressPercent, setProgressPercent] = useState(0)
-  const [isVisible, setIsVisible] = useState(false)
   const [showSoundWave, setShowSoundWave] = useState(false)
   const [isInteracting, setIsInteracting] = useState(false)
-
-  // Check if current path should show the audio player
-  const shouldShowOnPath = useCallback(() => {
-    // Only show on main feed or story pages
-    return pathname === "/" || pathname === "/feed" || 
-           pathname === "/explore" || pathname.includes("/story/");
-  }, [pathname]);
-
-  // Update progress percentage when currentTime or duration changes
+  const [isHomeTab, setIsHomeTab] = useState(false)
+  
+  // Check if we're on the home tab
   useEffect(() => {
-    if (!isDragging && duration > 0) {
-      const percent = (currentTime / duration) * 100
-      setProgressPercent(percent)
+    const checkIfHomeTab = () => {
+      setIsHomeTab(document.body.classList.contains('home-tab'))
     }
-  }, [currentTime, duration, isDragging])
-
-  // Show player when audio URL is set and path is appropriate
-  useEffect(() => {
-    // Check both audioUrl and current path
-    if (audioUrl && shouldShowOnPath()) {
-      setIsVisible(true);
-      
-      // Small delay before showing sound wave to ensure smoother animation
-      if (isPlaying) {
-        setTimeout(() => setShowSoundWave(true), 300);
-      } else {
-        setShowSoundWave(false);
-      }
-    } else {
-      // When no audio or not on a supported page, hide the player
-      const timer = setTimeout(() => {
-        setIsVisible(false);
-        setShowSoundWave(false);
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [audioUrl, isPlaying, pathname, shouldShowOnPath]);
+    
+    // Check initially
+    checkIfHomeTab()
+    
+    // Set up observer to watch for class changes on body
+    const observer = new MutationObserver(checkIfHomeTab)
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] })
+    
+    return () => observer.disconnect()
+  }, [])
 
   // Toggle sound wave animation when play state changes
   useEffect(() => {
@@ -64,8 +41,18 @@ export function SharedAudioPlayer() {
     }
   }, [isPlaying, audioUrl]);
 
-  // Hide player if no audio is loaded or on unsupported path
-  if (!isVisible || !audioUrl || !shouldShowOnPath()) return null
+  // Update progress percentage when currentTime or duration changes
+  useEffect(() => {
+    if (!isDragging && duration > 0) {
+      const percent = (currentTime / duration) * 100
+      setProgressPercent(percent)
+    }
+  }, [currentTime, duration, isDragging]);
+
+  // Only render on home tab and when audio is valid
+  if (!isHomeTab || !audioUrl || !audioUrl.trim() || duration <= 0 || Number.isNaN(duration)) {
+    return null;
+  }
 
   // Format time as MM:SS
   const formatTime = (time: number) => {
@@ -170,7 +157,10 @@ export function SharedAudioPlayer() {
   }
 
   return (
-    <div className={`shared-audio-player ${isMobile ? 'mobile' : 'desktop'}`}>
+    <div 
+      className={`shared-audio-player ${isMobile ? 'mobile' : 'desktop'}`}
+      data-has-audio={Boolean(audioUrl && duration > 0).toString()}
+    >
       <div className="tiktok-audio-player">
         <button 
           onClick={handlePlayClick} 

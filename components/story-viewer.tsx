@@ -212,47 +212,53 @@ export default function StoryViewer({ stories, initialIndex, onClose }: StoryVie
   }, [initialIndex, stories])
 
   return (
-    <div className="fixed inset-0 z-50 bg-paper dark:bg-paper-dark overflow-hidden">
-      {/* Back Button - improved positioning and styling */}
+    <div className="story-viewer fixed inset-0 z-50 bg-paper dark:bg-paper-dark">
+      {/* Back button */}
       <button
         onClick={onClose}
-        className="absolute top-4 left-4 z-[60] p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition-colors shadow-md"
-        aria-label="Close story viewer"
+        className="absolute top-4 left-4 z-10 p-2 bg-paper dark:bg-paper-dark rounded-full shadow-md"
+        aria-label="Go back"
       >
-        <ArrowLeft className="h-6 w-6" />
+        <ArrowLeft className="h-6 w-6 text-ink dark:text-ink-light" />
       </button>
 
+      {/* Story pagination indicators */}
+      <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5 z-10">
+        {stories.map((_, index) => (
+          <button
+            key={index}
+            onClick={() => navigateToStory(index)}
+            aria-label={`Go to story ${index + 1}`}
+            className={cn(
+              "h-1.5 rounded-full transition-all duration-300 bg-paper-dark/50 dark:bg-paper/50",
+              index === activeStoryIndex
+                ? "w-6 bg-highlight dark:bg-highlight"
+                : "w-1.5 hover:bg-paper-dark dark:hover:bg-paper",
+            )}
+          />
+        ))}
+      </div>
+
+      {/* Stories container */}
       <div
-        className={cn(
-          "story-viewer-feed h-full w-full overflow-hidden",
-          readingMode === "page"
-            ? "flex flex-col overflow-y-auto snap-y snap-mandatory"
-            : "flex overflow-x-auto snap-x snap-mandatory",
-        )}
         ref={storyViewerRef}
-        style={{
-          scrollSnapType: readingMode === "page" ? "y mandatory" : "x mandatory",
-        }}
+        className={`story-list h-full w-full ${
+          readingMode === "page" ? "flex flex-col overflow-y-auto" : "flex flex-row overflow-x-auto"
+        }`}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
         {stories.map((story, index) => (
           <div
-            key={story.id || index}
-            className={cn(
-              "story-wrapper flex-shrink-0",
-              readingMode === "page" ? "h-full snap-start" : "w-full snap-center",
-            )}
-            style={{
-              [readingMode === "page" ? "height" : "width"]: "100%",
-            }}
+            key={index}
+            className={`story-item min-w-full min-h-full ${readingMode === "page" ? "" : "inline-block"}`}
           >
             <StoryContainer
               story={story}
               showSidebar={false}
               toggleSidebar={() => {}}
               isActive={index === activeStoryIndex}
-              activeAudio={activeAudio === story.audio_url}
+              activeAudio={index === activeStoryIndex}
             />
           </div>
         ))}

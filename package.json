@@ -40,7 +40,7 @@
     "@radix-ui/react-toggle-group": "latest",
     "@radix-ui/react-tooltip": "latest",
     "@supabase/auth-helpers-nextjs": "latest",
-    "@supabase/ssr": "latest",
+    "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "latest",
     "@tiptap/core": "latest",
     "@tiptap/extension-character-count": "latest",

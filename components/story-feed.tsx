@@ -21,6 +21,7 @@ import type { Story } from "@/lib/types"
 import { useRouter } from "next/navigation"
 // Add the import for SidebarNavItem at the top of the file
 import SidebarNavItem from "./sidebar-nav-item"
+import { useAudio } from "@/contexts/audio-context"
 
 // At the top of the file, after the imports
 // Replace the current useAuth line with this safer implementation
@@ -68,6 +69,8 @@ export default function StoryFeed() {
   const [isLoading, setIsLoading] = useState(true)
   // Make sure the router is initialized
   const router = useRouter()
+  // Add audio context
+  const { stopAudio } = useAudio()
 
   // Add a new state for tracking sidebar collapse state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
@@ -110,11 +113,28 @@ export default function StoryFeed() {
     return () => window.removeEventListener("resize", handleResize)
   }, [])
 
+  // Set home-tab class on mount if activeTab is homeTab
+  useEffect(() => {
+    if (activeTab === "homeTab") {
+      document.body.classList.add('home-tab')
+    } else {
+      document.body.classList.remove('home-tab')
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      document.body.classList.remove('home-tab')
+    }
+  }, [activeTab])
+
   // Function to navigate to a specific story with smooth scrolling
   const navigateToStory = (index: number) => {
     if (!storyFeedRef.current || index < 0 || index >= stories.length || isTransitioning) return
 
     setIsTransitioning(true)
+    
+    // Stop any playing audio when navigating between stories
+    stopAudio()
 
     if (readingMode === "page") {
       // In page mode, scroll vertically
@@ -156,7 +176,17 @@ export default function StoryFeed() {
       return
     }
 
+    // Stop any playing audio when changing tabs
+    stopAudio()
+    
     setActiveTab(tabName)
+    
+    // Update body class based on active tab
+    if (tabName === "homeTab") {
+      document.body.classList.add('home-tab')
+    } else {
+      document.body.classList.remove('home-tab')
+    }
 
     // Reset scroll position when switching tabs
     if (storyFeedRef.current) {
@@ -232,6 +262,9 @@ export default function StoryFeed() {
             })
           }
           setActiveStoryIndex(newIndex)
+          
+          // Stop audio when scrolling to a different story
+          stopAudio()
         }
       }
 
@@ -246,6 +279,9 @@ export default function StoryFeed() {
 
         if (index >= 0 && index < stories.length && index !== activeStoryIndex) {
           setActiveStoryIndex(index)
+          
+          // Stop audio when changing to a different story
+          stopAudio()
         }
       } else {
         const storyWidth = feedContainer.clientWidth
@@ -253,6 +289,9 @@ export default function StoryFeed() {
 
         if (index >= 0 && index < stories.length && index !== activeStoryIndex) {
           setActiveStoryIndex(index)
+          
+          // Stop audio when changing to a different story
+          stopAudio()
         }
       }
     }

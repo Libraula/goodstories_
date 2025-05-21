@@ -14,6 +14,7 @@ interface AudioContextType {
   togglePlay: () => void
   toggleMute: () => void
   setProgress: (progress: number) => void
+  stopAudio: () => void
 }
 
 const defaultContext: AudioContextType = {
@@ -27,6 +28,7 @@ const defaultContext: AudioContextType = {
   togglePlay: () => {},
   toggleMute: () => {},
   setProgress: () => {},
+  stopAudio: () => {},
 }
 
 const AudioContext = createContext<AudioContextType>(defaultContext)
@@ -148,6 +150,25 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const setAudioUrl = (url: string | null, storyId?: string | null) => {
     console.log("setAudioUrl called with:", url, "storyId:", storyId);
     
+    // Immediately clear audio if url is null or empty
+    if (!url || url.trim() === '') {
+      console.log("No valid URL provided, clearing audio");
+      setAudioUrlState(null);
+      setCurrentStoryId(null);
+      lastUrlRef.current = null;
+      
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      }
+      
+      setIsPlaying(false);
+      setCurrentTime(0);
+      setDuration(0);
+      isAudioReady.current = false;
+      return;
+    }
+    
     // Debounce to avoid multiple rapid calls
     pendingUrlSets.current++;
     const currentCount = pendingUrlSets.current;
@@ -156,24 +177,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     setTimeout(() => {
       // Only process if this is still the most recent call
       if (currentCount !== pendingUrlSets.current) {
-        return;
-      }
-      
-      if (!url) {
-        console.log("No URL provided, clearing audio");
-        setAudioUrlState(null);
-        setCurrentStoryId(null);
-        lastUrlRef.current = null;
-        
-        if (audioRef.current) {
-          audioRef.current.pause();
-          audioRef.current.src = "";
-        }
-        
-        setIsPlaying(false);
-        setCurrentTime(0);
-        setDuration(0);
-        isAudioReady.current = false;
         return;
       }
       
@@ -262,8 +265,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       
       audio.onerror = (e) => {
         const error = audio.error;
-        console.error("Audio error:", e);
-        console.error("MediaError code:", error?.code, "message:", error?.message);
+        console.error("Audio error:", error || "Unknown error");
         
         setIsPlaying(false);
         isAudioReady.current = false;
@@ -529,6 +531,18 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }
   };
   
+  // Stop audio playback
+  const stopAudio = () => {
+    if (!audioRef.current) return;
+    
+    audioRef.current.pause();
+    audioRef.current.src = "";
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    isAudioReady.current = false;
+  };
+  
   return (
     <AudioContext.Provider
       value={{
@@ -542,6 +556,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         togglePlay,
         toggleMute,
         setProgress,
+        stopAudio,
       }}
     >
       {children}

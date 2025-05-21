@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
+import { createServerClient, type CookieOptions } from "@supabase/ssr"
 import { shouldSkipSupabase } from "@/lib/build-config"
 
 export async function middleware(request: NextRequest) {
@@ -19,7 +19,29 @@ export async function middleware(request: NextRequest) {
       return res
     }
 
-    const supabase = createMiddlewareClient({ req: request, res })
+    // Create a Supabase client using the ssr package
+    const supabase = createServerClient(supabaseUrl, supabaseKey, {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          res.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+        },
+        remove(name: string, options: CookieOptions) {
+          res.cookies.set({
+            name,
+            value: "",
+            ...options,
+            maxAge: 0,
+          })
+        },
+      },
+    })
 
     const {
       data: { session },
