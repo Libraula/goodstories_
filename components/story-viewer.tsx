@@ -30,7 +30,6 @@ export default function StoryViewer({ stories, initialIndex, onClose }: StoryVie
         !storyViewerRef.current ||
         index < 0 ||
         index >= stories.length ||
-        isTransitioning ||
         index === activeStoryIndex
       )
         return
@@ -42,44 +41,50 @@ export default function StoryViewer({ stories, initialIndex, onClose }: StoryVie
       setActiveAudio(stories[index]?.audio_url || null)
 
       const element = storyViewerRef.current
-      if (readingMode === "page") {
-        // In page mode, scroll vertically
-        const storyHeight = element.clientHeight
-        element.scrollTo({
-          top: storyHeight * index,
-          behavior: "smooth",
-        })
-      } else {
-        // In scroll mode, scroll horizontally
-        const storyWidth = element.clientWidth
-        element.scrollTo({
-          left: storyWidth * index,
-          behavior: "smooth",
-        })
-      }
-
-      // Use scrollend event if available, otherwise fallback to timeout
-      const handleScrollEnd = () => {
-        setIsTransitioning(false)
-        element.removeEventListener("scrollend", handleScrollEnd)
-      }
-
-      if ("onscrollend" in window) {
-        element.addEventListener("scrollend", handleScrollEnd, { once: true })
-      } else {
-        // Fallback for browsers that don't support scrollend
-        setTimeout(() => {
-          // Double check in case another navigation started
-          if (
-            element.scrollTop === element.clientHeight * index ||
-            element.scrollLeft === element.clientWidth * index
-          ) {
-            setIsTransitioning(false)
-          }
-        }, 500) // Adjust timing based on typical smooth scroll duration
-      }
+      
+      // Calculate target position
+      const targetPosition = readingMode === "page" 
+        ? index * element.clientHeight 
+        : index * element.clientWidth;
+      
+      // Update the z-index and visibility of story items
+      const storyItems = element.querySelectorAll('.story-item');
+      storyItems.forEach((item, i) => {
+        const htmlItem = item as HTMLElement;
+        // Update z-index and opacity to ensure proper visibility
+        htmlItem.style.zIndex = i === index ? '10' : '1';
+        htmlItem.style.opacity = '1';
+      });
+      
+      // Perform scroll with smooth behavior
+      element.scrollTo({
+        [readingMode === "page" ? "top" : "left"]: targetPosition,
+        behavior: "smooth"
+      });
+      
+      // Set a timeout to verify and correct scroll position
+      setTimeout(() => {
+        // Verify the scroll position and adjust if needed
+        const currentPosition = readingMode === "page" 
+          ? element.scrollTop 
+          : element.scrollLeft;
+          
+        const expectedPosition = readingMode === "page" 
+          ? index * element.clientHeight 
+          : index * element.clientWidth;
+        
+        // If position is not correct, force it
+        if (Math.abs(currentPosition - expectedPosition) > 10) {
+          element.scrollTo({
+            [readingMode === "page" ? "top" : "left"]: expectedPosition,
+            behavior: "auto" // Use instant positioning as fallback
+          });
+        }
+        
+        setIsTransitioning(false);
+      }, 500);
     },
-    [stories.length, isTransitioning, readingMode, activeStoryIndex],
+    [stories.length, readingMode, activeStoryIndex],
   )
 
   // Scroll snapping and index update logic (simplified from StoryFeed)
@@ -118,41 +123,50 @@ export default function StoryViewer({ stories, initialIndex, onClose }: StoryVie
   }
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!storyViewerRef.current || e.changedTouches.length === 0 || isTransitioning) return
+    if (!storyViewerRef.current || e.changedTouches.length === 0) return
 
     const touchEndX = e.changedTouches[0].clientX
     const touchEndY = e.changedTouches[0].clientY
     const deltaX = touchEndX - touchStartX
     const deltaY = touchEndY - touchStartY
 
-    // Determine if this is a significant swipe
-    const isSignificantSwipe = Math.abs(deltaX) > 50 || Math.abs(deltaY) > 50
-
-    if (!isSignificantSwipe) return
+    // Determine if this is a significant swipe (lower threshold for better response)
+    const isSignificantHorizontalSwipe = Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY)
+    const isSignificantVerticalSwipe = Math.abs(deltaY) > 40 && Math.abs(deltaY) > Math.abs(deltaX)
 
     if (readingMode === "page") {
       // In page mode, vertical swipe navigates
-      if (Math.abs(deltaY) > Math.abs(deltaX)) {
-        if (deltaY > 50 && activeStoryIndex > 0) {
-          // Swipe down
+      if (isSignificantVerticalSwipe) {
+        if (deltaY > 0 && activeStoryIndex > 0) {
+          // Swipe down - previous story
+          e.preventDefault()
           navigateToStory(activeStoryIndex - 1)
-        } else if (deltaY < -50 && activeStoryIndex < stories.length - 1) {
-          // Swipe up
+          return true
+        } else if (deltaY < 0 && activeStoryIndex < stories.length - 1) {
+          // Swipe up - next story
+          e.preventDefault()
           navigateToStory(activeStoryIndex + 1)
+          return true
         }
       }
     } else {
       // In scroll mode, horizontal swipe navigates
-      if (Math.abs(deltaX) > Math.abs(deltaY)) {
-        if (deltaX > 50 && activeStoryIndex > 0) {
-          // Swipe right
+      if (isSignificantHorizontalSwipe) {
+        if (deltaX > 0 && activeStoryIndex > 0) {
+          // Swipe right - previous story 
+          e.preventDefault()
           navigateToStory(activeStoryIndex - 1)
-        } else if (deltaX < -50 && activeStoryIndex < stories.length - 1) {
-          // Swipe left
+          return true
+        } else if (deltaX < 0 && activeStoryIndex < stories.length - 1) {
+          // Swipe left - next story
+          e.preventDefault()
           navigateToStory(activeStoryIndex + 1)
+          return true
         }
       }
     }
+    
+    return false
   }
 
   // Add keyboard navigation
@@ -247,11 +261,25 @@ export default function StoryViewer({ stories, initialIndex, onClose }: StoryVie
         }`}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
+        style={{
+          height: "auto",
+          minHeight: "100%",
+          scrollSnapType: readingMode === "page" ? "y mandatory" : "x mandatory",
+          scrollBehavior: "smooth"
+        }}
       >
         {stories.map((story, index) => (
           <div
             key={index}
-            className={`story-item min-w-full min-h-full ${readingMode === "page" ? "" : "inline-block"} sm:px-1 md:px-2 lg:px-3 w-full box-border overflow-hidden`}
+            className={`story-item min-w-full min-h-full h-auto ${readingMode === "page" ? "" : "inline-block"} sm:px-1 md:px-2 lg:px-3 w-full box-border overflow-auto`}
+            style={{ 
+              scrollSnapAlign: "start", 
+              position: "relative", 
+              zIndex: index === activeStoryIndex ? 10 : 1,
+              opacity: 1,
+              flex: "0 0 100%",
+              maxWidth: "100%"
+            }}
           >
             <StoryContainer
               story={story}

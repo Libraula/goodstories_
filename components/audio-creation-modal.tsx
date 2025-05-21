@@ -351,11 +351,11 @@ export default function AudioCreationModal({
         
         // Handle 504 Gateway Timeout specifically
         if (response.status === 504) {
-          detailedError = "The audio generation request timed out after 60 seconds. Please try with a shorter text (under 500 words).";
+          detailedError = "The audio generation request timed out after 3 minutes. Please try with a shorter text (under 1500 words).";
           
           toast({
             title: "Generation timed out",
-            description: "Due to server limitations, audio generation is limited to 60 seconds. Try shortening your story text.",
+            description: "Due to server limitations, audio generation is limited to 3 minutes. Try shortening your story text.",
             variant: "destructive",
           });
           
@@ -461,7 +461,7 @@ export default function AudioCreationModal({
                     AI Narration
                   </h3>
                   <p className="text-sm text-ink-light dark:text-ink-light">
-                    Our AI will read your story with natural expression. Generation typically takes 30-50 seconds.
+                    Our AI will read your story with natural expression. Generation typically takes 1-2 minutes.
                     {generationDuration && !isGenerating && (
                       <span className="block mt-2 text-highlight font-medium">
                         Last generation took {Math.round(generationDuration/1000)} seconds
@@ -474,7 +474,7 @@ export default function AudioCreationModal({
                     )}
                   </p>
                   <p className="text-xs text-ink-light mt-2">
-                    For best results, stories should be under 500 words. Very long stories may time out after 60 seconds due to server limitations.
+                    For best results, stories should be under 1500 words. Very long stories may time out after 3 minutes due to server limitations.
                   </p>
                 </div>
 

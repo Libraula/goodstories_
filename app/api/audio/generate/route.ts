@@ -3,10 +3,10 @@ import { type NextRequest, NextResponse } from "next/server"
 import { GoogleGenAI } from "@google/genai"
 import mime from "mime"
 
-// Set a reasonable timeout for the entire operation (60 seconds for Vercel hobby plan)
-const OPERATION_TIMEOUT_MS = 55000; // Use 55 seconds to allow for some processing overhead
+// Set a reasonable timeout for the entire operation (180 seconds for longer audio generation)
+const OPERATION_TIMEOUT_MS = 175000; // Use 175 seconds to allow for some processing overhead
 
-export const maxDuration = 60; // Maximum allowed for Vercel hobby plan
+export const maxDuration = 180; // Increased from 60 to 180 seconds (3 minutes)
 
 // Helper function for creating WAV headers
 interface WavConversionOptions {
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Limit text length to avoid API limits and timeout issues
-    const maxLength = 4000; // Increased for better quality
+    const maxLength = 12000; // Increased for longer audio generation (up to ~1500 words)
     const truncatedText = text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
 
     // Initialize Google Gemini - Check for API key first

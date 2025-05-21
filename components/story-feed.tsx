@@ -129,35 +129,58 @@ export default function StoryFeed() {
 
   // Function to navigate to a specific story with smooth scrolling
   const navigateToStory = (index: number) => {
-    if (!storyFeedRef.current || index < 0 || index >= stories.length || isTransitioning) return
-
+    if (!storyFeedRef.current || index < 0 || index >= stories.length) return
+    
+    // Set the state first so rendering updates properly
     setIsTransitioning(true)
+    setActiveStoryIndex(index)
     
     // Stop any playing audio when navigating between stories
     stopAudio()
 
-    if (readingMode === "page") {
-      // In page mode, scroll vertically
-      const storyHeight = storyFeedRef.current.clientHeight
-      storyFeedRef.current.scrollTo({
-        top: storyHeight * index,
-        behavior: "smooth",
-      })
-    } else {
-      // In scroll mode, scroll horizontally
-      const storyWidth = storyFeedRef.current.clientWidth
-      storyFeedRef.current.scrollTo({
-        left: storyWidth * index,
-        behavior: "smooth",
-      })
-    }
-
-    setActiveStoryIndex(index)
-
-    // Reset transitioning state after animation completes
+    const feedElement = storyFeedRef.current;
+    
+    // Force scroll position calculation based on index
+    const targetPosition = readingMode === "page" 
+      ? index * feedElement.clientHeight 
+      : index * feedElement.clientWidth;
+    
+    // First make invisible any story that's not the target
+    const storyWrappers = feedElement.querySelectorAll('.story-wrapper');
+    storyWrappers.forEach((wrapper, i) => {
+      const htmlWrapper = wrapper as HTMLElement;
+      // Update z-index and opacity to ensure proper visibility
+      htmlWrapper.style.zIndex = i === index ? '10' : '1';
+      htmlWrapper.style.opacity = '1';
+    });
+    
+    // Use scrollTo with smooth behavior for a nice transition
+    feedElement.scrollTo({
+      [readingMode === "page" ? "top" : "left"]: targetPosition,
+      behavior: "smooth"
+    });
+    
+    // Set a timeout to handle the end of transition
     setTimeout(() => {
-      setIsTransitioning(false)
-    }, 500) // Adjust timing to match scroll animation duration
+      // Verify the scroll position and adjust if needed
+      const currentPosition = readingMode === "page" 
+        ? feedElement.scrollTop 
+        : feedElement.scrollLeft;
+        
+      const expectedPosition = readingMode === "page" 
+        ? index * feedElement.clientHeight 
+        : index * feedElement.clientWidth;
+      
+      // If position is not correct, force it
+      if (Math.abs(currentPosition - expectedPosition) > 10) {
+        feedElement.scrollTo({
+          [readingMode === "page" ? "top" : "left"]: expectedPosition,
+          behavior: "auto" // Use instant positioning as fallback
+        });
+      }
+      
+      setIsTransitioning(false);
+    }, 500);
   }
 
   // Function to handle tab switching with authentication check
@@ -359,44 +382,54 @@ export default function StoryFeed() {
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchStartX(e.touches[0].clientX)
     setTouchStartY(e.touches[0].clientY)
+    setIsScrolling(false) // Reset scrolling state on touch start
   }
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!storyFeedRef.current || e.changedTouches.length === 0 || isTransitioning) return
+    if (!storyFeedRef.current || e.changedTouches.length === 0) return
 
     const touchEndX = e.changedTouches[0].clientX
     const touchEndY = e.changedTouches[0].clientY
     const deltaX = touchEndX - touchStartX
     const deltaY = touchEndY - touchStartY
 
-    // Determine if this is a significant swipe
-    const isSignificantSwipe = Math.abs(deltaX) > 50 || Math.abs(deltaY) > 50
-
-    if (!isSignificantSwipe) return
+    // Determine if this is a significant swipe (lower threshold to improve responsiveness)
+    const isSignificantHorizontalSwipe = Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY)
+    const isSignificantVerticalSwipe = Math.abs(deltaY) > 40 && Math.abs(deltaY) > Math.abs(deltaX)
 
     if (readingMode === "page") {
       // In page mode, vertical swipe navigates between stories
-      if (Math.abs(deltaY) > Math.abs(deltaX)) {
+      if (isSignificantVerticalSwipe) {
         if (deltaY > 0 && activeStoryIndex > 0) {
           // Swipe down - go to previous story
+          e.preventDefault()
           navigateToStory(activeStoryIndex - 1)
+          return true
         } else if (deltaY < 0 && activeStoryIndex < stories.length - 1) {
           // Swipe up - go to next story
+          e.preventDefault()
           navigateToStory(activeStoryIndex + 1)
+          return true
         }
       }
     } else {
       // In scroll mode, horizontal swipe navigates between stories
-      if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      if (isSignificantHorizontalSwipe) {
         if (deltaX > 0 && activeStoryIndex > 0) {
           // Swipe right - go to previous story
+          e.preventDefault()
           navigateToStory(activeStoryIndex - 1)
+          return true
         } else if (deltaX < 0 && activeStoryIndex < stories.length - 1) {
           // Swipe left - go to next story
+          e.preventDefault()
           navigateToStory(activeStoryIndex + 1)
+          return true
         }
       }
     }
+    
+    return false
   }
 
   // Add keyboard navigation
@@ -598,11 +631,13 @@ export default function StoryFeed() {
             readingMode === "page"
               ? "flex flex-col overflow-y-auto snap-y snap-mandatory"
               : "flex overflow-x-auto snap-x snap-mandatory"
-          } lg:max-h-[calc(100vh-60px)]`}
+          } lg:max-h-none`}
           ref={storyFeedRef}
           style={{
             scrollSnapType: readingMode === "page" ? "y mandatory" : "x mandatory",
             scrollBehavior: "smooth",
+            height: "auto",
+            minHeight: "100%"
           }}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
@@ -618,7 +653,15 @@ export default function StoryFeed() {
             stories.map((story, index) => (
               <div
                 key={index}
-                className={`story-wrapper ${readingMode === "page" ? "min-h-full snap-start" : "min-w-full snap-center"} sm:px-1 md:px-2 lg:px-4 w-full box-border overflow-hidden`}
+                className={`story-wrapper ${readingMode === "page" ? "min-h-full h-auto snap-start" : "min-w-full snap-center"} sm:px-1 md:px-2 lg:px-4 w-full box-border overflow-auto`}
+                style={{ 
+                  scrollSnapAlign: "start",
+                  position: "relative",
+                  zIndex: index === activeStoryIndex ? 10 : 1, 
+                  opacity: 1,
+                  flex: "0 0 100%",
+                  maxWidth: "100%"
+                }}
               >
                 <StoryContainer
                   story={story}

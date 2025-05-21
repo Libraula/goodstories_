@@ -343,13 +343,25 @@ export default function StoryContainer({
       const headerHeight = 60
       const bottomNavHeight = 60
       const availableHeight = viewportHeight - headerHeight - bottomNavHeight - 10
-      setContainerHeight(availableHeight)
+      // Set minimum height but allow content to expand
+      setContainerHeight(Math.max(availableHeight, 300))
     }
     updateHeight()
     const handleResize = () => {
       updateHeight()
+      
+      // Ensure content is fully visible after resize
+      if (contentRef.current && pagesContainerRef.current) {
+        const contentHeight = contentRef.current.scrollHeight
+        if (contentHeight > 0) {
+          // Allow container to expand based on content height
+          pagesContainerRef.current.style.minHeight = `${contentHeight + 40}px`
+        }
+      }
     }
     window.addEventListener("resize", handleResize)
+    // Run once after initial render to adapt to content
+    setTimeout(handleResize, 100)
     return () => window.removeEventListener("resize", handleResize)
   }, [])
 
@@ -851,6 +863,7 @@ export default function StoryContainer({
             scrollbarWidth: "none",
             WebkitOverflowScrolling: "touch",
             scrollSnapType: readingMode === "page" ? "x mandatory" : "y mandatory",
+            scrollBehavior: "smooth"
           }}
         >
           {story.pages.map((page, index) => (
@@ -858,10 +871,20 @@ export default function StoryContainer({
               key={index}
               className={`story-page ${
                 readingMode === "page" ? "min-w-full snap-center" : "w-full snap-start"
-              } px-2 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col overflow-hidden`}
-              style={!isFullScreen ? { height: readingMode === "page" ? `${containerHeight}px` : "auto" } : {}}
+              } px-2 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col overflow-auto`}
+              style={!isFullScreen ? 
+                { 
+                  minHeight: readingMode === "page" ? `${containerHeight}px` : "auto", 
+                  height: "auto",
+                  scrollSnapAlign: "start" 
+                } : 
+                { 
+                  height: "auto",
+                  scrollSnapAlign: "start" 
+                }
+              }
             >
-              <div className="story-page-content h-full flex flex-col overflow-hidden">
+              <div className="story-page-content h-auto min-h-full flex flex-col overflow-visible">
                 <div
                   ref={index === currentPage ? contentRef : null}
                   className={`story-content-wrapper w-full sm:w-[95%] md:w-[90%] lg:w-[85%] xl:w-[75%] mx-auto pt-4 sm:pt-6 lg:pt-8 pb-16 flex-1`}
@@ -878,10 +901,11 @@ export default function StoryContainer({
                       className="story-text leading-relaxed mb-4 text-ink dark:text-ink wysiwyg-content w-full"
                       style={{
                         fontSize: "var(--story-font-size)",
-                        maxHeight: !isFullScreen && readingMode === "page" ? `${containerHeight - 120}px` : "none",
+                        maxHeight: !isFullScreen && readingMode === "page" ? "none" : "none",
                         lineHeight: "1.7",
                         textAlign: "justify",
                         hyphens: "auto",
+                        overflowY: "visible",
                       }}
                     >
                       {page.content.map((paragraph, pIndex) => (
