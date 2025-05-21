@@ -62,7 +62,7 @@ export default function AudioGenerator({ story, onAudioGenerated }: AudioGenerat
     setIsGenerating(true)
     toast({
       title: "Generating audio...",
-      description: "This may take a few moments.",
+      description: "This may take up to 90 seconds for longer stories.",
       variant: "default",
     })
 
@@ -83,56 +83,91 @@ export default function AudioGenerator({ story, onAudioGenerated }: AudioGenerat
         textLength: truncatedText.length,
       })
 
-      const response = await fetch("/api/audio/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          storyId: story.id,
-          text: truncatedText,
-          voice: selectedVoice,
-        }),
-      })
+      // Set a timeout for the fetch request
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
 
-      if (!response.ok) {
-        let detailedError = "Failed to generate audio. Server returned an error."; // Default message
-        try {
-          const errorData = await response.json();
-          detailedError = errorData.details || errorData.error || detailedError;
-        } catch (e) {
-          console.error("Could not parse error response as JSON:", e);
-          // Try to get text from the response if JSON parsing fails
-          try {
-            const textResponse = await response.text();
-            if (textResponse) {
-              detailedError = textResponse;
-            }
-          } catch (textErr) {
-            console.error("Could not get text from error response:", textErr);
+      try {
+        const response = await fetch("/api/audio/generate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            storyId: story.id,
+            text: truncatedText,
+            voice: selectedVoice,
+          }),
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeout);
+
+        // Check for timeout or server errors
+        if (!response.ok) {
+          let errorMessage = "Failed to generate audio.";
+          
+          if (response.status === 504) {
+            errorMessage = "The request timed out. Try with a shorter story or try again later.";
           }
+          
+          // Try to get detailed error message
+          let detailedError = errorMessage;
+          try {
+            const errorData = await response.json();
+            detailedError = errorData.details || errorData.error || detailedError;
+          } catch (e) {
+            console.error("Could not parse error response as JSON:", e);
+            // Try to get text from the response if JSON parsing fails
+            try {
+              const textResponse = await response.text();
+              if (textResponse) {
+                detailedError = textResponse;
+              }
+            } catch (textErr) {
+              console.error("Could not get text from error response:", textErr);
+            }
+          }
+          
+          throw new Error(detailedError);
         }
-        throw new Error(detailedError);
+
+        const data = await response.json()
+        console.log("Audio generated successfully", data)
+
+        // Set the audio URL in the global audio context
+        setAudioUrl(data.audioUrl, story.id)
+
+        toast({
+          title: "Audio generated successfully!",
+          description: `Your story now has audio in the ${VOICES.find((v) => v.id === selectedVoice)?.name || selectedVoice} voice.`,
+          variant: "default",
+        })
+
+        onAudioGenerated(data.audioUrl)
+      } catch (fetchError: unknown) {
+        // Handle AbortController timeout
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          throw new Error("The audio generation request timed out. Please try with a shorter text or try again later.");
+        }
+        throw fetchError;
       }
-
-      const data = await response.json()
-      console.log("Audio generated successfully", data)
-
-      // Set the audio URL in the global audio context
-      setAudioUrl(data.audioUrl)
-
-      toast({
-        title: "Audio generated successfully!",
-        description: `Your story now has audio in the ${VOICES.find((v) => v.id === selectedVoice)?.name || selectedVoice} voice.`,
-        variant: "default",
-      })
-
-      onAudioGenerated(data.audioUrl)
     } catch (error) {
       console.error("Error generating audio:", error)
+      
+      // Provide user-friendly error messages
+      let errorMessage = error instanceof Error ? error.message : "Failed to generate audio";
+      
+      // Check for specific error conditions and provide helpful messages
+      if (errorMessage.includes("timed out") || errorMessage.includes("timeout")) {
+        errorMessage = "The request took too long. Try using less text (under 2000 characters) or try again later.";
+      } else if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
+        errorMessage = "Network error. Please check your connection and try again.";
+      }
+      
       toast({
         title: "Error generating audio",
-        description: error instanceof Error ? error.message : "Failed to generate audio",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {

@@ -104,7 +104,7 @@ export default function StoryContainer({
         
                  // Set URL
          if (story.audio_url) {
-           setAudioUrl(story.audio_url);
+           setAudioUrl(story.audio_url, story.id);
          }
         
         // Wait for audio to be ready before playing
@@ -584,7 +584,7 @@ export default function StoryContainer({
         togglePlay(); // This will pause
       } else {
         // First set URL directly - no need to clear first with our new implementation
-        setAudioUrl(story.audio_url);
+        setAudioUrl(story.audio_url, story.id);
         
         // Brief delay before play
         setTimeout(() => {
@@ -782,7 +782,7 @@ export default function StoryContainer({
                         togglePlay(); // This will pause
                       } else {
                         // First set the URL (only once)
-                        setAudioUrl(story.audio_url);
+                        setAudioUrl(story.audio_url, story.id);
                         
                         // Small delay to ensure URL is set before playing
                         setTimeout(() => {

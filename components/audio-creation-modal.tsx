@@ -75,6 +75,8 @@ export default function AudioCreationModal({
   // State for AI generation
   const [selectedVoice, setSelectedVoice] = useState("zephyr")
   const [isGenerating, setIsGenerating] = useState(false)
+  const [generationStartTime, setGenerationStartTime] = useState<number | null>(null)
+  const [generationDuration, setGenerationDuration] = useState<number | null>(null)
 
   // State for recording
   const [isRecording, setIsRecording] = useState(false)
@@ -84,8 +86,8 @@ export default function AudioCreationModal({
   const [isPlaying, setIsPlaying] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
 
-  // State for tab selection - changed default to "record"
-  const [activeTab, setActiveTab] = useState<"ai" | "record">("record")
+  // State for tab selection - changed default to "ai"
+  const [activeTab, setActiveTab] = useState<"ai" | "record">("ai")
 
   // State for story preview
   const [currentPage, setCurrentPage] = useState(0)
@@ -327,12 +329,11 @@ export default function AudioCreationModal({
     // --- END ADDED CLIENT-SIDE LOGGING AND CHECK FOR storyId ---
 
     setIsGenerating(true)
+    setGenerationStartTime(Date.now())
+    setGenerationDuration(null)
 
     try {
-      // Limit text length to avoid API limits
-      const maxLength = 4000
-      const truncatedText = storyText.length > maxLength ? storyText.substring(0, maxLength) + "..." : storyText
-
+      // Don't truncate the text - let the API handle the full story
       const response = await fetch("/api/audio/generate", {
         method: "POST",
         headers: {
@@ -340,39 +341,59 @@ export default function AudioCreationModal({
         },
         body: JSON.stringify({
           storyId: storyId,
-          text: truncatedText,
+          text: storyText,
           voice: selectedVoice,
         }),
-      })
+      });
 
       if (!response.ok) {
         let detailedError = "Failed to generate audio. Server returned an error."; // Default message
-        try {
-          const errorData = await response.json();
-          detailedError = errorData.details || errorData.error || detailedError;
-        } catch (e) {
-          console.error("Could not parse error response as JSON:", e);
-          // Try to get text from the response if JSON parsing fails
+        
+        // Handle 504 Gateway Timeout specifically
+        if (response.status === 504) {
+          detailedError = "The audio generation request timed out. Please try with a shorter text or try again later.";
+          
+          toast({
+            title: "Generation timed out",
+            description: "Your story might be too long for our audio service. You can try again or continue without audio.",
+            variant: "destructive",
+          });
+          
+          // Still return the error to be handled by the catch block
+          throw new Error(detailedError);
+        } else {
           try {
-            const textResponse = await response.text();
-            if (textResponse) {
-              detailedError = textResponse;
+            const errorData = await response.json();
+            detailedError = errorData.details || errorData.error || detailedError;
+          } catch (e) {
+            console.error("Could not parse error response as JSON:", e);
+            // Try to get text from the response if JSON parsing fails
+            try {
+              const textResponse = await response.text();
+              if (textResponse) {
+                detailedError = textResponse;
+              }
+            } catch (textErr) {
+              console.error("Could not get text from error response:", textErr);
             }
-          } catch (textErr) {
-            console.error("Could not get text from error response:", textErr);
           }
         }
         throw new Error(detailedError);
       }
 
       const data = await response.json()
+      
+      // Record generation duration
+      const endTime = Date.now()
+      const duration = endTime - (generationStartTime || endTime)
+      setGenerationDuration(duration)
 
       // Complete the process
       onComplete(data.audioUrl, "ai")
 
       toast({
         title: "Audio generated!",
-        description: "AI narration has been added to your story.",
+        description: `AI narration has been added to your story in ${Math.round(duration/1000)} seconds.`,
         variant: "default",
       })
     } catch (error) {
@@ -382,7 +403,11 @@ export default function AudioCreationModal({
         description: error instanceof Error ? error.message : "Failed to generate audio",
         variant: "destructive",
       })
+    } finally {
       setIsGenerating(false)
+      if (generationStartTime) {
+        setGenerationDuration(Date.now() - generationStartTime)
+      }
     }
   }
 
@@ -402,16 +427,8 @@ export default function AudioCreationModal({
         </button>
       </div>
 
-      {/* Tab Navigation - Swapped order to make Record Yourself first */}
+      {/* Tab Navigation - Swapped order to make AI Narration first */}
       <div className="flex border-b border-paper-dark/20 dark:border-paper/20">
-        <button
-          className={`flex-1 py-3 px-4 text-center font-medium ${
-            activeTab === "record" ? "text-highlight border-b-2 border-highlight" : "text-ink-light hover:text-ink"
-          }`}
-          onClick={() => setActiveTab("record")}
-        >
-          Record Yourself
-        </button>
         <button
           className={`flex-1 py-3 px-4 text-center font-medium ${
             activeTab === "ai" ? "text-highlight border-b-2 border-highlight" : "text-ink-light hover:text-ink"
@@ -420,55 +437,87 @@ export default function AudioCreationModal({
         >
           AI Narration
         </button>
+        <button
+          className={`flex-1 py-3 px-4 text-center font-medium ${
+            activeTab === "record" ? "text-highlight border-b-2 border-highlight" : "text-ink-light hover:text-ink"
+          }`}
+          onClick={() => setActiveTab("record")}
+        >
+          Record Yourself
+        </button>
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-auto">
-        {/* AI Generation Tab - Removed story preview */}
+        {/* AI Generation Tab - Improved UI with story preview and generation time */}
         {activeTab === "ai" && (
-          <div className="p-4">
-            <div className="max-w-2xl mx-auto space-y-6">
-              <p className="text-sm text-ink-light dark:text-ink-light">
-                Choose a voice for the AI to narrate your story. Each voice has its own unique character and tone.
-              </p>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">Select Voice</label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {VOICES.map((voice) => (
-                    <button
-                      key={voice.id}
-                      onClick={() => setSelectedVoice(voice.id)}
-                      className={`p-2 rounded-md text-left text-sm ${
-                        selectedVoice === voice.id
-                          ? "bg-highlight text-white"
-                          : "bg-paper-dark/10 dark:bg-paper/10 hover:bg-paper-dark/20 dark:hover:bg-paper/20"
-                      }`}
-                    >
-                      <div className="font-medium">{voice.name}</div>
-                      <div className="text-xs opacity-80">{voice.description}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <button
-                onClick={generateAudio}
-                disabled={isGenerating}
-                className="w-full py-3 px-4 bg-highlight text-white rounded-md hover:bg-highlight/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    Generating Audio...
-                  </>
-                ) : (
-                  <>
+          <div className="flex flex-col h-full">
+            {/* Voice Selection and Generation Controls */}
+            <div className="w-full p-4">
+              <div className="max-w-md mx-auto space-y-6">
+                <div className="bg-paper-dark/5 dark:bg-paper/5 p-4 rounded-lg mb-4">
+                  <h3 className="text-lg font-medium mb-2 text-highlight flex items-center gap-2">
                     <Volume2 className="h-5 w-5" />
-                    Generate AI Narration
-                  </>
-                )}
-              </button>
+                    AI Narration
+                  </h3>
+                  <p className="text-sm text-ink-light dark:text-ink-light">
+                    Our AI will read your story with natural expression. Generation typically takes 30-90 seconds.
+                    {generationDuration && !isGenerating && (
+                      <span className="block mt-2 text-highlight font-medium">
+                        Last generation took {Math.round(generationDuration/1000)} seconds
+                      </span>
+                    )}
+                    {isGenerating && generationStartTime && (
+                      <span className="block mt-2 text-highlight font-medium animate-pulse">
+                        Generating... {Math.round((Date.now() - generationStartTime) / 1000)} seconds
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-ink-light mt-2">
+                    For best results, stories should be under 700 words. Very long stories may time out during audio generation.
+                  </p>
+                </div>
+
+                <div className="mb-6">
+                  <label className="block text-sm font-medium mb-2">Select Voice</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[60vh] overflow-y-auto p-1 border border-paper-dark/10 dark:border-paper/10 rounded-lg">
+                    {VOICES.map((voice) => (
+                      <button
+                        key={voice.id}
+                        onClick={() => setSelectedVoice(voice.id)}
+                        className={`p-3 rounded-md text-left text-sm transition-all ${
+                          selectedVoice === voice.id
+                            ? "bg-highlight text-white shadow-sm"
+                            : "bg-paper-dark/5 dark:bg-paper/5 hover:bg-paper-dark/10 dark:hover:bg-paper/10"
+                        }`}
+                      >
+                        <div className="font-medium">{voice.name}</div>
+                        <div className="text-xs opacity-80">{voice.description}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={generateAudio}
+                  disabled={isGenerating}
+                  className="w-full py-3 px-4 bg-highlight text-white rounded-lg hover:bg-highlight/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Generating Audio... {generationStartTime && (
+                        <span className="ml-1">({Math.round((Date.now() - generationStartTime) / 1000)}s)</span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="h-5 w-5" />
+                      Generate AI Narration
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -660,13 +709,14 @@ export default function AudioCreationModal({
         <div className="max-w-2xl mx-auto flex flex-col sm:flex-row gap-3">
           <button
             onClick={onSkip}
-            className="flex-1 py-3 px-4 bg-paper-dark/10 dark:bg-paper/10 text-ink-light rounded-md hover:bg-paper-dark/20 dark:hover:bg-paper/20 transition-colors"
+            className="flex-1 py-3 px-4 bg-paper-dark/10 dark:bg-paper/10 text-ink-light rounded-lg hover:bg-paper-dark/20 dark:hover:bg-paper/20 transition-colors flex items-center justify-center"
           >
-            Skip Audio & Publish Story
+            <span className="md:hidden">Skip Audio</span>
+            <span className="hidden md:inline">Skip Audio & Publish Story</span>
           </button>
           <button
             onClick={onClose}
-            className="flex-1 py-3 px-4 border border-paper-dark/20 dark:border-paper/20 text-ink dark:text-ink rounded-md hover:bg-paper-dark/5 dark:hover:bg-paper/5 transition-colors"
+            className="flex-1 py-3 px-4 border border-paper-dark/20 dark:border-paper/20 text-ink dark:text-ink rounded-lg hover:bg-paper-dark/5 dark:hover:bg-paper/5 transition-colors"
           >
             Cancel
           </button>

@@ -3,6 +3,20 @@ import { type NextRequest, NextResponse } from "next/server"
 import { GoogleGenAI } from "@google/genai"
 import mime from "mime"
 
+// Define a timeout promise to prevent hanging requests
+const timeoutPromise = (timeoutMs: number) => {
+  return new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`Request timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+};
+
+// Set a reasonable timeout for the entire operation (90 seconds)
+const OPERATION_TIMEOUT_MS = 90000;
+
+export const maxDuration = 300; // Allow up to 5 minutes (Vercel Edge Function limit)
+
 export async function POST(request: NextRequest) {
   try {
     // --- BEGIN DIAGNOSTIC LOGGING ---
@@ -99,15 +113,19 @@ export async function POST(request: NextRequest) {
 
     console.log("🎙️ API: Generating audio with Gemini TTS...", { voice, model });
 
-    // Generate audio with Gemini
+    // Generate audio with Gemini with timeout
     try {
       const gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
-      const geminiResponse = await gemini.models.generateContent({
-        model,
-        config,
-        contents,
-      });
+      // Use Promise.race to implement timeout
+      const geminiResponse = await Promise.race([
+        gemini.models.generateContent({
+          model,
+          config,
+          contents,
+        }),
+        timeoutPromise(OPERATION_TIMEOUT_MS)
+      ]);
 
       console.log("✅ API: Received response from Gemini");
 
@@ -177,10 +195,20 @@ export async function POST(request: NextRequest) {
       
     } catch (geminiError) {
       console.error("❌ API: Error in Gemini audio generation:", geminiError);
+      
+      // Check if this is a timeout error and return a specific message for timeouts
+      const errorMessage = geminiError instanceof Error ? geminiError.message : "Unknown error in audio generation";
+      const isTimeout = errorMessage.includes("timed out") || geminiError instanceof Error && geminiError.name === "AbortError";
+      
+      const status = isTimeout ? 504 : 500;
+      const errorDetails = isTimeout ? 
+        "The audio generation request timed out. Please try with a shorter text or try again later." :
+        errorMessage;
+      
       return NextResponse.json({ 
-        error: "AI audio generation failed", 
-        details: geminiError instanceof Error ? geminiError.message : "Unknown error in audio generation"
-      }, { status: 500 });
+        error: isTimeout ? "Audio generation timed out" : "AI audio generation failed", 
+        details: errorDetails
+      }, { status });
     }
     
   } catch (error) {

@@ -341,7 +341,7 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
 
       {/* Comment input */}
       <div className="comment-input-container sticky bottom-0 p-4 border-t border-paper-dark/20 dark:border-paper/20 bg-paper dark:bg-paper-dark">
-        <div className="flex items-end gap-3">
+        <div className="flex items-center gap-3">
           <div className="flex-1 relative">
             <textarea
               ref={commentInputRef}
@@ -349,14 +349,14 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
               onChange={handleCommentChange}
               onKeyDown={handleKeyDown}
               placeholder="Add a comment..."
-              className="w-full min-h-[80px] max-h-[200px] p-3 pr-10 bg-paper-dark/10 dark:bg-paper/10 rounded-lg resize-none focus:ring-2 focus:ring-highlight/50 focus:outline-none text-ink dark:text-ink-light placeholder:text-ink-light/50 dark:placeholder:text-ink-light/50"
+              className="w-full h-12 p-3 pr-10 bg-paper-dark/10 dark:bg-paper/10 rounded-lg resize-none focus:ring-2 focus:ring-highlight/50 focus:outline-none text-ink dark:text-ink-light placeholder:text-ink-light/50 dark:placeholder:text-ink-light/50"
               disabled={isSubmitting || !user}
             />
           </div>
           <button
             onClick={handleCommentSubmit}
             disabled={!newComment.trim() || isSubmitting || !user}
-            className={`p-3 rounded-full flex items-center justify-center shadow-sm transition-colors ${
+            className={`h-12 w-12 rounded-full flex items-center justify-center shadow-sm transition-colors ${
               !newComment.trim() || isSubmitting || !user
                 ? "bg-paper-dark/20 dark:bg-paper/20 text-ink-light/50 dark:text-ink-light/50 cursor-not-allowed"
                 : "bg-highlight text-white hover:bg-highlight/80"

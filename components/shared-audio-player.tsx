@@ -5,9 +5,11 @@ import { useRef, useState, useEffect, useCallback } from "react"
 import { Play, Pause, Volume2, VolumeX } from "lucide-react"
 import { useAudio } from "@/contexts/audio-context"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { usePathname } from "next/navigation"
 
 export function SharedAudioPlayer() {
   const isMobile = useIsMobile()
+  const pathname = usePathname()
   const { audioUrl, isPlaying, currentTime, duration, isMuted, togglePlay, toggleMute, setProgress } = useAudio()
   const progressContainerRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -15,6 +17,13 @@ export function SharedAudioPlayer() {
   const [isVisible, setIsVisible] = useState(false)
   const [showSoundWave, setShowSoundWave] = useState(false)
   const [isInteracting, setIsInteracting] = useState(false)
+
+  // Check if current path should show the audio player
+  const shouldShowOnPath = useCallback(() => {
+    // Only show on main feed or story pages
+    return pathname === "/" || pathname === "/feed" || 
+           pathname === "/explore" || pathname.includes("/story/");
+  }, [pathname]);
 
   // Update progress percentage when currentTime or duration changes
   useEffect(() => {
@@ -24,9 +33,10 @@ export function SharedAudioPlayer() {
     }
   }, [currentTime, duration, isDragging])
 
-  // Show player when audio URL is set
+  // Show player when audio URL is set and path is appropriate
   useEffect(() => {
-    if (audioUrl) {
+    // Check both audioUrl and current path
+    if (audioUrl && shouldShowOnPath()) {
       setIsVisible(true);
       
       // Small delay before showing sound wave to ensure smoother animation
@@ -36,14 +46,14 @@ export function SharedAudioPlayer() {
         setShowSoundWave(false);
       }
     } else {
-      // When no audio, hide the player after a short delay
+      // When no audio or not on a supported page, hide the player
       const timer = setTimeout(() => {
         setIsVisible(false);
         setShowSoundWave(false);
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [audioUrl, isPlaying]);
+  }, [audioUrl, isPlaying, pathname, shouldShowOnPath]);
 
   // Toggle sound wave animation when play state changes
   useEffect(() => {
@@ -54,8 +64,8 @@ export function SharedAudioPlayer() {
     }
   }, [isPlaying, audioUrl]);
 
-  // Hide player if no audio is loaded
-  if (!isVisible || !audioUrl) return null
+  // Hide player if no audio is loaded or on unsupported path
+  if (!isVisible || !audioUrl || !shouldShowOnPath()) return null
 
   // Format time as MM:SS
   const formatTime = (time: number) => {

@@ -9,7 +9,8 @@ interface AudioContextType {
   currentTime: number
   duration: number
   isMuted: boolean
-  setAudioUrl: (url: string | null) => void
+  currentStoryId: string | null
+  setAudioUrl: (url: string | null, storyId?: string | null) => void
   togglePlay: () => void
   toggleMute: () => void
   setProgress: (progress: number) => void
@@ -21,6 +22,7 @@ const defaultContext: AudioContextType = {
   currentTime: 0,
   duration: 0,
   isMuted: false,
+  currentStoryId: null,
   setAudioUrl: () => {},
   togglePlay: () => {},
   toggleMute: () => {},
@@ -73,6 +75,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [isMuted, setIsMuted] = useState(false)
+  const [currentStoryId, setCurrentStoryId] = useState<string | null>(null)
   
   // Use refs to track state without triggering re-renders
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -142,8 +145,8 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   }, []);
   
   // Function to set a new audio URL
-  const setAudioUrl = (url: string | null) => {
-    console.log("setAudioUrl called with:", url);
+  const setAudioUrl = (url: string | null, storyId?: string | null) => {
+    console.log("setAudioUrl called with:", url, "storyId:", storyId);
     
     // Debounce to avoid multiple rapid calls
     pendingUrlSets.current++;
@@ -159,6 +162,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       if (!url) {
         console.log("No URL provided, clearing audio");
         setAudioUrlState(null);
+        setCurrentStoryId(null);
         lastUrlRef.current = null;
         
         if (audioRef.current) {
@@ -175,6 +179,20 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       
       // Format URL if needed (especially for Supabase)
       const formattedUrl = formatSupabaseUrl(url);
+      
+      // If we already have audio playing for a different story, pause it first
+      if (storyId && currentStoryId && storyId !== currentStoryId) {
+        console.log("Different story detected, stopping current audio");
+        if (audioRef.current) {
+          audioRef.current.pause();
+          setIsPlaying(false);
+        }
+      }
+      
+      // Update story ID tracking
+      if (storyId) {
+        setCurrentStoryId(storyId);
+      }
       
       // Skip if URL hasn't changed - IMPORTANT: helps avoid reloading loop
       if (formattedUrl === lastUrlRef.current) {
@@ -519,6 +537,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         currentTime,
         duration,
         isMuted,
+        currentStoryId,
         setAudioUrl,
         togglePlay,
         toggleMute,
