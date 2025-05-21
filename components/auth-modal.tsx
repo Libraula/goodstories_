@@ -68,7 +68,9 @@ export default function AuthModal({ isOpen, onClose, message }: AuthModalProps) 
             onClick={signInWithGoogle}
             className="social-btn flex items-center justify-center gap-3 w-full py-4 px-4 rounded-full border border-paper-dark dark:border-paper text-ink dark:text-ink hover:bg-paper/50 dark:hover:bg-paper-dark/50 transition-colors shadow-sm"
           >
-            <Image src="/google-logo.svg" alt="Google" width={20} height={20} className="w-5 h-5" />
+            <div className="flex-shrink-0 w-5 h-5">
+              <Image src="/google-logo.svg" alt="Google" width={20} height={20} className="w-full h-full" priority />
+            </div>
             <span className="font-medium">Continue with Google</span>
           </button>
 

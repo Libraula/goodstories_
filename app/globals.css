@@ -880,6 +880,13 @@ body:not(.home-tab) .editor-page ~ .shared-audio-player {
   z-index: 999;
 }
 
+/* Move audio player to the left on larger screens */
+@media (min-width: 1024px) {
+  .shared-audio-player.desktop {
+    right: 60px; /* Move 40px to the left from original position */
+  }
+}
+
 .shared-audio-player.desktop .tiktok-audio-player {
   width: 280px;
   height: 36px;
