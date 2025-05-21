@@ -926,95 +926,122 @@ export default function StoryContainer({
       </div>
 
       {/* Action buttons - update z-index and positioning for fullscreen */}
-      <div
-        className={`action-buttons fixed ${isFullScreen ? "bottom-20 right-6" : "bottom-[190px] sm:bottom-[170px] lg:bottom-20 right-4 lg:right-6"} flex flex-col ${isFullScreen ? "gap-4" : "gap-3 lg:gap-4"} z-[110] transition-all duration-300 ${
-          showActionIcons || window.innerWidth >= 1024 ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
-      >
-        {/* Author Profile Button - Now at the top */}
-        {!isFullScreen && (
-          <button
-            onClick={viewAuthorProfile}
-            className="action-button w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border-2 border-highlight overflow-hidden relative"
-          >
-            <Image
-              src={story.author.avatar || "/placeholder.svg"}
-              alt={story.author.name}
-              width={40}
-              height={40}
-              className="w-full h-full object-cover rounded-full"
-            />
-            {/* Plus icon circle for following - moved to bottom right */}
-            <div
-              onClick={(e) => {
-                e.stopPropagation();
-                const isFollowing = e.currentTarget.classList.contains('following');
-                
-                if (isFollowing) {
-                  e.currentTarget.classList.remove('following');
-                  toast({
-                    title: "Unfollowed",
-                    description: `You've unfollowed ${story.author.name}`,
-                    variant: "default",
-                  });
-                } else {
-                  e.currentTarget.classList.add('following');
-                  toast({
-                    title: "Following",
-                    description: `You're now following ${story.author.name}`,
-                    variant: "default",
-                  });
-                }
-              }}
-              className="absolute bottom-0 right-0 w-4 h-4 rounded-full flex items-center justify-center cursor-pointer bg-highlight hover:bg-highlight/90 transition-all shadow-sm"
+      {isActive && (
+        <div
+          className={`action-buttons fixed ${isFullScreen ? "bottom-20 right-6" : "bottom-[160px] sm:bottom-[140px] lg:bottom-20 right-4 lg:right-6"} flex flex-col ${isFullScreen ? "gap-4" : "gap-3 lg:gap-4"} z-[110] transition-all duration-300 ${
+            showActionIcons || window.innerWidth >= 1024 ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
+        >
+          {/* Author Profile Button - Now at the top */}
+          {!isFullScreen && (
+            <button
+              onClick={viewAuthorProfile}
+              className="action-button w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border-2 border-highlight overflow-hidden relative"
             >
-              <PlusCircle className="h-2.5 w-2.5 text-white" />
-            </div>
+              <Image
+                src={story.author.avatar || "/placeholder.svg"}
+                alt={story.author.name}
+                width={40}
+                height={40}
+                className="w-full h-full object-cover rounded-full"
+              />
+              {/* Plus icon circle for following - moved to bottom right */}
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const isFollowing = e.currentTarget.classList.contains('following');
+                  
+                  if (isFollowing) {
+                    e.currentTarget.classList.remove('following');
+                    toast({
+                      title: "Unfollowed",
+                      description: `You've unfollowed ${story.author.name}`,
+                      variant: "default",
+                    });
+                  } else {
+                    e.currentTarget.classList.add('following');
+                    toast({
+                      title: "Following",
+                      description: `You're now following ${story.author.name}`,
+                      variant: "default",
+                    });
+                  }
+                }}
+                className="absolute bottom-0 right-0 w-4 h-4 rounded-full flex items-center justify-center cursor-pointer bg-highlight hover:bg-highlight/90 transition-all shadow-sm"
+              >
+                <PlusCircle className="h-2.5 w-2.5 text-white" />
+              </div>
+            </button>
+          )}
+
+          <button
+            onClick={toggleLike}
+            className={`action-button w-10 h-10 rounded-full flex items-center justify-center relative transition-all shadow-md ${
+              isLiked
+                ? "bg-highlight text-white"
+                : "bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20"
+            } ${isLikeAnimating ? "animate-pulse scale-110" : ""}`}
+          >
+            <Heart className={`h-5 w-5 ${isLiked ? "fill-current" : ""} ${isLikeAnimating ? "animate-ping" : ""}`} />
+            <span className="absolute -right-1 -top-1 bg-highlight text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+              {formatCount(likeCount)}
+            </span>
           </button>
-        )}
 
-        <button
-          onClick={toggleLike}
-          className={`action-button w-10 h-10 rounded-full flex items-center justify-center relative transition-all shadow-md ${
-            isLiked
-              ? "bg-highlight text-white"
-              : "bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20"
-          } ${isLikeAnimating ? "animate-pulse scale-110" : ""}`}
-        >
-          <Heart className={`h-5 w-5 ${isLiked ? "fill-current" : ""} ${isLikeAnimating ? "animate-ping" : ""}`} />
-          <span className="absolute -right-1 -top-1 bg-highlight text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-            {formatCount(likeCount)}
-          </span>
-        </button>
+          <button
+            onClick={toggleBookmark}
+            className={`action-button w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md ${
+              isBookmarked
+                ? "bg-highlight text-white"
+                : "bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20"
+            } ${isBookmarkAnimating ? "animate-pulse scale-110" : ""}`}
+          >
+            <Bookmark
+              className={`h-5 w-5 ${isBookmarked ? "fill-current" : ""} ${isBookmarkAnimating ? "animate-ping" : ""}`}
+            />
+            <span className="absolute -right-1 -top-1 bg-highlight text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+              {formatCount(bookmarkCount)}
+            </span>
+          </button>
 
-        <button
-          onClick={() => setShowComments(true)}
-          className="action-button w-10 h-10 rounded-full flex items-center justify-center relative transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20"
-        >
-          <MessageCircle className={`h-5 w-5 ${showComments ? "fill-current" : ""}`} />
-          <span className="absolute -right-1 -top-1 bg-highlight text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-            {formatCount(story.comment_count ?? 0)}
-          </span>
-        </button>
+          <button
+            onClick={() => setShowComments(true)}
+            className="action-button w-10 h-10 rounded-full flex items-center justify-center relative transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20"
+          >
+            <MessageCircle className={`h-5 w-5 ${showComments ? "fill-current" : ""}`} />
+            <span className="absolute -right-1 -top-1 bg-highlight text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+              {formatCount(story.comment_count ?? 0)}
+            </span>
+          </button>
 
-        <button
-          onClick={toggleBookmark}
-          className={`action-button w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md ${
-            isBookmarked
-              ? "bg-highlight text-white"
-              : "bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20"
-          } ${isBookmarkAnimating ? "animate-pulse scale-110" : ""}`}
-        >
-          <Bookmark
-            className={`h-5 w-5 ${isBookmarked ? "fill-current" : ""} ${isBookmarkAnimating ? "animate-ping" : ""}`}
-          />
-        </button>
-      </div>
+          {/* Full Screen Toggle Button */}
+          <button
+            onClick={toggleFullScreen}
+            className="action-button w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20"
+            aria-label={isFullScreen ? "Exit full screen" : "Enter full screen"}
+          >
+            {isFullScreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+          </button>
+
+          <button
+            onClick={() => {
+              toast({
+                title: "Share",
+                description: "Sharing functionality is coming soon!",
+                variant: "default",
+              })
+            }}
+            className="action-button w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20"
+          >
+            <Share2 className="h-5 w-5" />
+          </button>
+        </div>
+      )}
 
       {/* Eye toggle button - update positioning for fullscreen */}
       {isActive && (
         <button
-          className={`reading-mode-toggle fixed ${isFullScreen ? "bottom-[45px] z-[120]" : "bottom-[160px] z-20"} right-4 w-10 h-10 rounded-full flex items-center justify-center bg-highlight text-white border border-paper-dark/20 dark:border-paper/20 transition-all shadow-md`}
+          className={`reading-mode-toggle fixed ${isFullScreen ? "bottom-[45px] z-[120]" : "bottom-[130px] z-20"} right-4 w-10 h-10 rounded-full flex items-center justify-center bg-highlight text-white border border-paper-dark/20 dark:border-paper/20 transition-all shadow-md animate-in fade-in duration-300`}
           onClick={toggleActionIcons}
           aria-label={showActionIcons ? "Hide action icons" : "Show action icons"}
         >
@@ -1025,7 +1052,7 @@ export default function StoryContainer({
       {/* Page indicator - update positioning for fullscreen */}
       {isActive && (
         <div
-          className={`page-indicator fixed ${isFullScreen ? "bottom-[45px] z-[120]" : "bottom-[160px] z-20"} left-1/2 transform -translate-x-1/2 px-3 py-1 rounded-full bg-highlight text-white font-bold border border-paper-dark/20 dark:border-paper/20 text-xs shadow-md`}
+          className={`page-indicator fixed ${isFullScreen ? "bottom-[45px] z-[120]" : "bottom-[130px] z-20"} left-1/2 transform -translate-x-1/2 px-3 py-1 rounded-full bg-highlight text-white font-bold border border-paper-dark/20 dark:border-paper/20 text-xs shadow-md animate-in fade-in duration-300`}
         >
           {currentPage + 1} / {story.pages.length}
         </div>

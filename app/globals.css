@@ -387,14 +387,67 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  transition: all 0.3s ease-in-out;
+  animation: fadeInRight 0.3s ease-in-out;
+}
+
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .action-button {
   transition: all 0.2s ease;
+  position: relative;
 }
 
 .action-button:active {
   transform: scale(0.95);
+}
+
+/* Enhanced action button styles */
+.action-button .absolute {
+  transform: translateY(0);
+  transition: transform 0.2s ease;
+}
+
+.action-button:hover .absolute {
+  transform: translateY(-2px);
+}
+
+/* Better contrast in dark mode */
+.dark .action-button {
+  background-color: rgba(45, 45, 45, 0.8) !important;
+  border-color: rgba(80, 80, 80, 0.4) !important;
+}
+
+.dark .action-button .absolute {
+  background-color: var(--highlight) !important;
+}
+
+/* Improve count indicator */
+.action-button .absolute {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  font-weight: 600;
+}
+
+/* Special styling for fullscreen mode */
+.fullscreen-story .action-buttons {
+  bottom: 90px !important;
+}
+
+/* Custom hover effects for action buttons */
+@media (hover: hover) {
+  .action-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+  }
 }
 
 /* Story meta positioning */
@@ -955,20 +1008,49 @@ body:not(.home-tab) .editor-page ~ .shared-audio-player {
 /* Fixed Action Buttons and Pagination for Desktop */
 @media (min-width: 1024px) {
   .action-buttons {
-    opacity: 1 !important;
-    pointer-events: auto !important;
-    bottom: 20px !important;
+    bottom: 30px !important;
     right: 24px !important;
     gap: 16px !important;
+  }
+  
+  .action-button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  
+  .action-button .h-5 {
+    height: 1.35rem !important;
+    width: 1.35rem !important;
   }
   
   .reading-mode-toggle,
   .page-indicator {
     opacity: 1 !important;
-    bottom: 45px !important;
+    bottom: 40px !important; /* Also raised */
   }
   
   .reading-mode-toggle {
     right: 24px !important;
   }
+  
+  /* Ensure better positioning relative to bottom nav */
+  .story-content-fill {
+    padding-bottom: 120px !important; /* Add padding to prevent overlap with buttons */
+  }
+}
+
+/* Animation utilities for UI elements */
+.animate-in {
+  animation-duration: 0.3s;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+}
+
+.fade-in {
+  animation-name: fadeIn;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
