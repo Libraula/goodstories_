@@ -55,18 +55,11 @@ function formatSupabaseUrl(url: string): string {
   
   // If it's a Supabase URL, ensure it's properly formatted for audio playback
   if (url.includes('supabase.co/storage')) {
-    // Use our proxy for WAV files to ensure better browser compatibility
-    if (url.toLowerCase().endsWith('.wav')) {
-      console.log("Using audio proxy for WAV file:", url);
-      // Encode the URL to make it safe for query parameters
-      const encodedUrl = encodeURIComponent(url);
-      return `/api/audio-proxy?url=${encodedUrl}`;
-    }
-    
-    // For other file types, just make sure download parameter is added if needed
-    if (!url.includes('?download=')) {
-      return url + '?download=true';
-    }
+    // Always use our proxy for Supabase audio files to ensure better browser compatibility
+    console.log("Using audio proxy for Supabase file:", url);
+    // Encode the URL to make it safe for query parameters
+    const encodedUrl = encodeURIComponent(url);
+    return `/api/audio-proxy?url=${encodedUrl}`;
   }
   return url;
 }
@@ -427,11 +420,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
           setIsPlaying(false);
           
           // Try to autofix common issues
-          if (error.name === "NotSupportedError") {
-            console.log("Format not supported, trying to reload");
+          if (error.name === "NotSupportedError" || error.message?.includes("format") || error.message?.includes("MIME")) {
+            console.log("Format not supported, trying to reload with proxy");
             // The audio format might not be supported
             if (lastUrlRef.current) {
-              // Try with a download parameter for Supabase
+              // Always try to use our proxy API for format issues
               let fixedUrl = lastUrlRef.current;
               
               // Try using our proxy API for any file causing format issues

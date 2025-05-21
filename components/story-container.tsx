@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import type { Story } from "@/lib/types"
 import CommentsSection from "./comments-section"
+import { useEffect as useWindowEffect } from "react"
 import { useReadingSettings } from "@/contexts/reading-settings-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useAuthModal } from "@/hooks/use-auth-modal"
@@ -47,6 +48,9 @@ export default function StoryContainer({
   isActive?: boolean
   activeAudio?: boolean
 }) {
+  // Initialize with action buttons hidden by default
+  const [showActionIcons, setShowActionIcons] = useState(false);
+
   // Initialize all state hooks at the top level
   const [currentPage, setCurrentPage] = useState(0)
   const [isLiked, setIsLiked] = useState(false)
@@ -54,7 +58,7 @@ export default function StoryContainer({
   const [likeCount, setLikeCount] = useState(0)
   const [bookmarkCount, setBookmarkCount] = useState(0)
   const [showComments, setShowComments] = useState(false)
-  const [showActionIcons, setShowActionIcons] = useState(false)
+  // Action buttons are always completely hidden by default
   const [lastTapTime, setLastTapTime] = useState(0)
   const [touchStartX, setTouchStartX] = useState(0)
   const [touchStartY, setTouchStartY] = useState(0)
@@ -109,17 +113,11 @@ export default function StoryContainer({
           setAudioUrl(story.audio_url, story.id);
         }
         
-        // Wait for audio to be ready before playing
+                  // Wait for audio to be ready before playing
         setTimeout(() => {
           if (!isPlaying) {
             console.log("Attempting to play audio");
             togglePlay();
-            
-            toast({
-              title: "Audio Ready",
-              description: "Click play to listen to narration",
-              variant: "default",
-            });
           }
         }, 500);
       }, 300);
@@ -222,8 +220,12 @@ export default function StoryContainer({
     // Add class to body to help identify pages with story containers
     document.body.classList.add('story-container-page');
     
+    // Also add home-tab class to ensure audio controls and related elements work properly
+    document.body.classList.add('home-tab');
+    
     return () => {
       document.body.classList.remove('story-container-page');
+      document.body.classList.remove('home-tab');
     };
   }, []);
 
@@ -575,12 +577,30 @@ export default function StoryContainer({
       openModal()
       return
     }
-    setShowComments(!showComments)
+    
+    console.log("Toggling comments:", !showComments);
+    document.body.classList.toggle('comments-open', !showComments);
+    setShowComments(!showComments);
+    
+    // Force a small delay to make sure the UI updates
+    setTimeout(() => {
+      if (!showComments) {
+        console.log("Comments should now be visible");
+      } else {
+        console.log("Comments should now be hidden");
+      }
+    }, 100);
   }
 
   // Function to toggle action icons
   const toggleActionIcons = () => {
     setShowActionIcons(!showActionIcons)
+    // Force hide after a short delay if they're being shown
+    if (!showActionIcons) {
+      setTimeout(() => {
+        setShowActionIcons(false)
+      }, 5000) // Auto-hide after 5 seconds
+    }
   }
 
   // Function to view author profile
@@ -606,14 +626,8 @@ export default function StoryContainer({
         
         // Brief delay before play
         setTimeout(() => {
-          togglePlay();
-          
-          toast({
-            title: "Playing audio",
-            description: "Story narration started",
-            variant: "default",
-          });
-        }, 200);
+                              togglePlay();
+                  }, 200);
       }
     } else if (isAuthor) {
       // Only show audio generator if user is the author
@@ -928,8 +942,8 @@ export default function StoryContainer({
       {/* Action buttons - update z-index and positioning for fullscreen */}
       {isActive && (
         <div
-          className={`action-buttons fixed ${isFullScreen ? "bottom-20 right-6" : "bottom-[160px] sm:bottom-[140px] lg:bottom-20 right-4 lg:right-6"} flex flex-col ${isFullScreen ? "gap-4" : "gap-3 lg:gap-4"} z-[110] transition-all duration-300 ${
-            showActionIcons || window.innerWidth >= 1024 ? "opacity-100" : "opacity-0 pointer-events-none"
+          className={`action-buttons fixed ${isFullScreen ? "bottom-20 right-6" : "bottom-[155px] sm:bottom-[145px] lg:bottom-[125px] right-4 lg:right-6"} flex flex-col ${isFullScreen ? "gap-4" : "gap-3 lg:gap-4"} z-[110] transition-all duration-300 ${
+            showActionIcons ? "opacity-100" : "hidden opacity-0 pointer-events-none invisible"
           }`}
         >
           {/* Author Profile Button - Now at the top */}
@@ -1005,7 +1019,7 @@ export default function StoryContainer({
           </button>
 
           <button
-            onClick={() => setShowComments(true)}
+            onClick={toggleComments}
             className="action-button w-10 h-10 rounded-full flex items-center justify-center relative transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20"
           >
             <MessageCircle className={`h-5 w-5 ${showComments ? "fill-current" : ""}`} />
@@ -1041,9 +1055,9 @@ export default function StoryContainer({
       {/* Eye toggle button - update positioning for fullscreen */}
       {isActive && (
         <button
-          className={`reading-mode-toggle fixed ${isFullScreen ? "bottom-[45px] z-[120]" : "bottom-[130px] z-20"} right-4 w-10 h-10 rounded-full flex items-center justify-center bg-highlight text-white border border-paper-dark/20 dark:border-paper/20 transition-all shadow-md animate-in fade-in duration-300`}
+          className={`reading-mode-toggle fixed ${isFullScreen ? "bottom-[45px] z-[120]" : "bottom-[145px]"} right-4 w-10 h-10 rounded-full flex items-center justify-center bg-highlight text-white border border-paper-dark/20 dark:border-paper/20 transition-all shadow-md animate-in fade-in duration-300`}
           onClick={toggleActionIcons}
-          aria-label={showActionIcons ? "Hide action icons" : "Show action icons"}
+          aria-label="Show action icons"
         >
           {showActionIcons ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
         </button>
@@ -1052,9 +1066,19 @@ export default function StoryContainer({
       {/* Page indicator - update positioning for fullscreen */}
       {isActive && (
         <div
-          className={`page-indicator fixed ${isFullScreen ? "bottom-[45px] z-[120]" : "bottom-[130px] z-20"} left-1/2 transform -translate-x-1/2 px-3 py-1 rounded-full bg-highlight text-white font-bold border border-paper-dark/20 dark:border-paper/20 text-xs shadow-md animate-in fade-in duration-300`}
+          className={`page-indicator fixed ${isFullScreen ? "bottom-[45px] z-[120]" : "bottom-[145px]"} left-1/2 transform -translate-x-1/2 px-3 py-1 rounded-full bg-highlight text-white font-bold border border-paper-dark/20 dark:border-paper/20 text-xs shadow-md animate-in fade-in duration-300`}
         >
           {currentPage + 1} / {story.pages.length}
+        </div>
+      )}
+
+      {/* Comments section - render when shown */}
+      {showComments && story?.id && (
+        <div className="comments-section-wrapper fixed inset-0 z-[200] flex items-end justify-center">
+          <div className="comments-overlay fixed inset-0 bg-black/50" onClick={toggleComments}></div>
+          <div className="comments-container relative w-full h-[80vh] max-w-md bg-paper dark:bg-paper-dark rounded-t-xl overflow-hidden shadow-xl z-10 animate-in slide-in-from-bottom">
+            <CommentsSection storyId={story.id} onClose={toggleComments} />
+          </div>
         </div>
       )}
     </div>
