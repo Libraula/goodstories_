@@ -1,3 +1,7 @@
+@import "../styles/app-layout.css";
+@import "../styles/navigation.css";
+@import "../styles/audio-player.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -737,8 +741,11 @@ body.comments-open {
 /* Shared Audio Player Styles - TikTok-like */
 .shared-audio-player {
   position: fixed;
-  z-index: 999;
-  pointer-events: auto;
+  z-index: 9999 !important; /* Ensure it's above everything */
+  pointer-events: auto !important;
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 /* Mobile styles */
@@ -758,6 +765,8 @@ body.comments-open {
   border-radius: 18px;
   padding: 0 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  display: flex !important;
+  align-items: center;
 }
 
 /* Desktop styles */
@@ -773,11 +782,13 @@ body.comments-open {
   border-radius: 18px;
   padding: 0 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  display: flex !important;
+  align-items: center;
 }
 
 /* TikTok-style minimalistic audio player */
 .tiktok-audio-player {
-  display: flex;
+  display: flex !important;
   align-items: center;
   gap: 8px;
 }

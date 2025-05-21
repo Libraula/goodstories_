@@ -5,26 +5,53 @@ import { Loader2, Volume2, Check } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import type { Story } from "@/lib/types"
 import { useAuth } from "@/contexts/auth-context"
+import { useAudio } from "@/contexts/audio-context"
 
 interface AudioGeneratorProps {
   story: Story
   onAudioGenerated: (audioUrl: string) => void
 }
 
+// All 30 Gemini voice options
 const VOICES = [
-  { id: "alloy", name: "Fenrir", description: "Deep male voice" },
-  { id: "echo", name: "Nimbus", description: "Soft and calm female voice" },
-  { id: "fable", name: "Monarch", description: "British-sounding voice" },
-  { id: "onyx", name: "Fenrir Alt", description: "Deep and authoritative male voice" },
-  { id: "nova", name: "Prism", description: "Warm and engaging female voice" },
-  { id: "shimmer", name: "Halo", description: "Clear and expressive female voice" },
+  { id: "zephyr", name: "Zephyr", description: "Bright" },
+  { id: "puck", name: "Puck", description: "Upbeat" },
+  { id: "charon", name: "Charon", description: "Informative" },
+  { id: "kore", name: "Kore", description: "Firm" },
+  { id: "fenrir", name: "Fenrir", description: "Excitable" },
+  { id: "leda", name: "Leda", description: "Youthful" },
+  { id: "orus", name: "Orus", description: "Firm" },
+  { id: "aoede", name: "Aoede", description: "Breezy" },
+  { id: "callirhoe", name: "Callirhoe", description: "Easy-going" },
+  { id: "autonoe", name: "Autonoe", description: "Bright" },
+  { id: "enceladus", name: "Enceladus", description: "Breathy" },
+  { id: "iapetus", name: "Iapetus", description: "Clear" },
+  { id: "umbriel", name: "Umbriel", description: "Easy-going" },
+  { id: "algieba", name: "Algieba", description: "Smooth" },
+  { id: "despina", name: "Despina", description: "Smooth" },
+  { id: "erinome", name: "Erinome", description: "Clear" },
+  { id: "algenib", name: "Algenib", description: "Gravelly" },
+  { id: "rasalgethi", name: "Rasalgethi", description: "Informative" },
+  { id: "laomedeia", name: "Laomedeia", description: "Upbeat" },
+  { id: "achernar", name: "Achernar", description: "Soft" },
+  { id: "alnilam", name: "Alnilam", description: "Firm" },
+  { id: "schedar", name: "Schedar", description: "Even" },
+  { id: "gacrux", name: "Gacrux", description: "Mature" },
+  { id: "pulcherrima", name: "Pulcherrima", description: "Forward" },
+  { id: "achird", name: "Achird", description: "Friendly" },
+  { id: "zubenelgenubi", name: "Zubenelgenubi", description: "Casual" },
+  { id: "vindemiatrix", name: "Vindemiatrix", description: "Gentle" },
+  { id: "sadachbia", name: "Sadachbia", description: "Lively" },
+  { id: "sadaltager", name: "Sadaltager", description: "Knowledgeable" },
+  { id: "sulafar", name: "Sulafar", description: "Warm" },
 ]
 
 export default function AudioGenerator({ story, onAudioGenerated }: AudioGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false)
-  const [selectedVoice, setSelectedVoice] = useState("nova")
+  const [selectedVoice, setSelectedVoice] = useState("zephyr") // Default to Zephyr
   const { toast } = useToast()
   const { user } = useAuth()
+  const { setAudioUrl } = useAudio()
 
   // Check if current user is the author of the story
   const isAuthor = user?.id === story.author_id
@@ -33,6 +60,11 @@ export default function AudioGenerator({ story, onAudioGenerated }: AudioGenerat
     if (isGenerating || !isAuthor) return
 
     setIsGenerating(true)
+    toast({
+      title: "Generating audio...",
+      description: "This may take a few moments.",
+      variant: "default",
+    })
 
     try {
       // Combine all text content from story pages
@@ -41,9 +73,15 @@ export default function AudioGenerator({ story, onAudioGenerated }: AudioGenerat
         .flatMap((page) => page.content)
         .join(" ")
 
-      // Limit text length to avoid API limits (most TTS APIs have character limits)
+      // Limit text length to avoid API limits
       const maxLength = 4000
       const truncatedText = storyText.length > maxLength ? storyText.substring(0, maxLength) + "..." : storyText
+
+      console.log("Generating audio for story", {
+        storyId: story.id,
+        voice: selectedVoice,
+        textLength: truncatedText.length,
+      })
 
       const response = await fetch("/api/audio/generate", {
         method: "POST",
@@ -63,10 +101,14 @@ export default function AudioGenerator({ story, onAudioGenerated }: AudioGenerat
       }
 
       const data = await response.json()
+      console.log("Audio generated successfully", data)
+
+      // Set the audio URL in the global audio context
+      setAudioUrl(data.audioUrl)
 
       toast({
-        title: "Audio generated with Gemini!",
-        description: "Your story now has an audio version powered by Google Gemini.",
+        title: "Audio generated successfully!",
+        description: `Your story now has audio in the ${VOICES.find((v) => v.id === selectedVoice)?.name || selectedVoice} voice.`,
         variant: "default",
       })
 
@@ -74,7 +116,7 @@ export default function AudioGenerator({ story, onAudioGenerated }: AudioGenerat
     } catch (error) {
       console.error("Error generating audio:", error)
       toast({
-        title: "Error",
+        title: "Error generating audio",
         description: error instanceof Error ? error.message : "Failed to generate audio",
         variant: "destructive",
       })
@@ -97,7 +139,7 @@ export default function AudioGenerator({ story, onAudioGenerated }: AudioGenerat
 
       <div className="mb-4">
         <label className="block text-sm font-medium mb-1">Select Voice</label>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-[300px] overflow-y-auto pr-1">
           {VOICES.map((voice) => (
             <button
               key={voice.id}

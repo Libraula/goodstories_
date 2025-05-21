@@ -12,6 +12,7 @@ export function SharedAudioPlayer() {
   const progressContainerRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [progressPercent, setProgressPercent] = useState(0)
+  const [isVisible, setIsVisible] = useState(false)
 
   // Update progress percentage when currentTime or duration changes
   useEffect(() => {
@@ -21,8 +22,17 @@ export function SharedAudioPlayer() {
     }
   }, [currentTime, duration, isDragging])
 
+  // Show player when audio URL is set
+  useEffect(() => {
+    if (audioUrl) {
+      setIsVisible(true)
+    } else {
+      setIsVisible(false)
+    }
+  }, [audioUrl])
+
   // Hide player if no audio is loaded
-  if (!audioUrl) return null
+  if (!isVisible || !audioUrl) return null
 
   // Format time as MM:SS
   const formatTime = (time: number) => {
@@ -41,21 +51,29 @@ export function SharedAudioPlayer() {
   }
 
   // Handle touch on progress bar
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    setIsDragging(true)
+    handleTouchMove(e)
+  }
+
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
     if (progressContainerRef.current && e.touches[0]) {
       const rect = progressContainerRef.current.getBoundingClientRect()
       const touchPosition = (e.touches[0].clientX - rect.left) / rect.width
-      setProgressPercent(Math.max(0, Math.min(1, touchPosition)) * 100)
+      const newPercent = Math.max(0, Math.min(1, touchPosition)) * 100
+      setProgressPercent(newPercent)
     }
   }
 
   const handleTouchEnd = () => {
-    setIsDragging(false)
-    setProgress(progressPercent / 100)
+    if (isDragging) {
+      setProgress(progressPercent / 100)
+      setIsDragging(false)
+    }
   }
 
   return (
-    <div className={`shared-audio-player ${isMobile ? "mobile" : "desktop"}`}>
+    <div className="fixed-audio-player">
       <div className="tiktok-audio-player">
         <button onClick={togglePlay} className="audio-control-btn" aria-label={isPlaying ? "Pause" : "Play"}>
           {isPlaying ? <Pause size={16} /> : <Play size={16} />}
@@ -65,12 +83,13 @@ export function SharedAudioPlayer() {
           ref={progressContainerRef}
           className="audio-progress-container"
           onClick={handleProgressClick}
-          onTouchStart={() => setIsDragging(true)}
+          onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
           <div className="audio-progress-bg"></div>
           <div className="audio-progress-fill" style={{ width: `${progressPercent}%` }}></div>
+          <div className="audio-progress-handle" style={{ left: `${progressPercent}%` }}></div>
         </div>
 
         <span className="audio-time">{formatTime(currentTime)}</span>

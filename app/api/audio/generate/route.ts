@@ -45,9 +45,7 @@ export async function POST(request: NextRequest) {
     const truncatedText = text.length > maxLength ? text.substring(0, maxLength) + "..." : text
 
     // Initialize Google Gemini
-    const gemini = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY || "",
-    })
+    const gemini = new GoogleGenAI(process.env.GEMINI_API_KEY || "")
 
     // Configure TTS settings
     const config = {
@@ -56,7 +54,7 @@ export async function POST(request: NextRequest) {
       speechConfig: {
         voiceConfig: {
           prebuiltVoiceConfig: {
-            voiceName: mapVoice(voice), // Map the voice name to Gemini voice
+            voiceName: voice, // Use the voice name directly from the request
           },
         },
       },
@@ -68,11 +66,13 @@ export async function POST(request: NextRequest) {
         role: "user",
         parts: [
           {
-            text: truncatedText,
+            text: `Read this story with appropriate emotion and pacing: ${truncatedText}`,
           },
         ],
       },
     ]
+
+    console.log("Generating audio with Gemini TTS...", { voice, model })
 
     // Generate audio with Gemini
     const response = await gemini.models.generateContent({
@@ -80,6 +80,8 @@ export async function POST(request: NextRequest) {
       config,
       contents,
     })
+
+    console.log("Received response from Gemini")
 
     // Extract audio data
     let audioBuffer: Buffer | null = null
@@ -94,14 +96,18 @@ export async function POST(request: NextRequest) {
       const inlineData = response.response.candidates[0].content.parts[0].inlineData
       mimeType = inlineData.mimeType || "audio/wav"
       audioBuffer = Buffer.from(inlineData.data || "", "base64")
+      console.log("Successfully extracted audio data", { mimeType, bufferSize: audioBuffer.length })
     }
 
     if (!audioBuffer) {
+      console.error("No audio data in response", response)
       throw new Error("Failed to generate audio data")
     }
 
     // Upload to Supabase Storage
     const fileName = `story_audio/${storyId}/${Date.now()}.${mime.getExtension(mimeType) || "wav"}`
+
+    console.log("Uploading audio to Supabase storage", { fileName })
 
     // Use the service role key for storage operations to bypass RLS
     const serviceRoleSupabase = createClient()
@@ -128,6 +134,8 @@ export async function POST(request: NextRequest) {
     // Get the public URL
     const { data: publicUrlData } = serviceRoleSupabase.storage.from("goodstories").getPublicUrl(fileName)
 
+    console.log("Audio uploaded successfully", { publicUrl: publicUrlData.publicUrl })
+
     // Update the story with the audio URL
     const { error: updateError } = await supabase
       .from("stories")
@@ -148,23 +156,10 @@ export async function POST(request: NextRequest) {
       success: true,
       audioUrl: publicUrlData.publicUrl,
       audioType: "gemini",
+      voice: voice,
     })
   } catch (error) {
     console.error("Error generating audio:", error)
     return NextResponse.json({ error: "Failed to generate audio", details: (error as Error).message }, { status: 500 })
   }
-}
-
-// Helper function to map voice names from our UI to Gemini voice names
-function mapVoice(voice: string): string {
-  const voiceMap: Record<string, string> = {
-    alloy: "Fenrir", // Deep male voice
-    echo: "Nimbus", // Soft female voice
-    fable: "Monarch", // British-sounding voice
-    onyx: "Fenrir", // Deep male voice (duplicate)
-    nova: "Prism", // Warm female voice
-    shimmer: "Halo", // Clear female voice
-  }
-
-  return voiceMap[voice] || "Prism" // Default to Prism if no match
 }
