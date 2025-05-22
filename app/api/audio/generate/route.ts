@@ -6,7 +6,7 @@ import mime from "mime"
 // Set a reasonable timeout for the entire operation (180 seconds for longer audio generation)
 const OPERATION_TIMEOUT_MS = 175000; // Use 175 seconds to allow for some processing overhead
 
-export const maxDuration = 180; // Increased from 60 to 180 seconds (3 minutes)
+export const maxDuration = 180000; // Increased from 60 to 180 seconds (3 minutes)
 
 // Helper function for creating WAV headers
 interface WavConversionOptions {
