@@ -30,143 +30,141 @@ export default function StoryViewer({ stories, initialIndex, onClose }: StoryVie
         !storyViewerRef.current ||
         index < 0 ||
         index >= stories.length ||
-        index === activeStoryIndex
+        index === activeStoryIndex ||
+        isTransitioning // Prevent new navigation if already transitioning
       )
         return
 
-      setIsTransitioning(true)
-      setActiveStoryIndex(index) // Update index immediately for visual feedback if needed
-
-      // Update active audio to the new story's audio
+      setIsTransitioning(true) // Set transitioning flag
+      setActiveStoryIndex(index)
       setActiveAudio(stories[index]?.audio_url || null)
 
       const element = storyViewerRef.current
-      
-      // Calculate target position
-      const targetPosition = readingMode === "page" 
-        ? index * element.clientHeight 
-        : index * element.clientWidth;
-      
-      // Update the z-index and visibility of story items
-      const storyItems = element.querySelectorAll('.story-item');
+      const targetPosition =
+        readingMode === "page" ? index * element.clientHeight : index * element.clientWidth
+
+      // Ensure all items are correctly styled for smooth transition
+      const storyItems = element.querySelectorAll('.story-item') as NodeListOf<HTMLElement>;
       storyItems.forEach((item, i) => {
-        const htmlItem = item as HTMLElement;
-        // Update z-index and opacity to ensure proper visibility
-        htmlItem.style.zIndex = i === index ? '10' : '1';
-        htmlItem.style.opacity = '1';
+        item.style.zIndex = i === index ? '10' : '1';
+        item.style.opacity = '1'; // Ensure all are opaque for scrolling
+        item.style.visibility = 'visible'; // Ensure all are visible
       });
-      
-      // Perform scroll with smooth behavior
+
+      // Scroll to the target position
       element.scrollTo({
         [readingMode === "page" ? "top" : "left"]: targetPosition,
-        behavior: "smooth"
-      });
-      
-      // Set a timeout to verify and correct scroll position
+        behavior: "smooth", // Use smooth scrolling
+      })
+
+      // Force a reflow before the final check if necessary
+      void element.offsetHeight;
+
+      // Timeout to reset transitioning state and verify scroll position
       setTimeout(() => {
-        // Verify the scroll position and adjust if needed
-        const currentPosition = readingMode === "page" 
-          ? element.scrollTop 
-          : element.scrollLeft;
-          
-        const expectedPosition = readingMode === "page" 
-          ? index * element.clientHeight 
-          : index * element.clientWidth;
-        
-        // If position is not correct, force it
-        if (Math.abs(currentPosition - expectedPosition) > 10) {
+        const currentPosition =
+          readingMode === "page" ? element.scrollTop : element.scrollLeft
+        // If scroll hasn't reached the target, snap to it
+        if (Math.abs(currentPosition - targetPosition) > 10) { // Increased tolerance
           element.scrollTo({
-            [readingMode === "page" ? "top" : "left"]: expectedPosition,
-            behavior: "auto" // Use instant positioning as fallback
-          });
+            [readingMode === "page" ? "top" : "left"]: targetPosition,
+            behavior: "auto", // Use auto for instant snap
+          })
         }
-        
-        setIsTransitioning(false);
-      }, 500);
+        setIsTransitioning(false) // Reset transitioning flag
+      }, 550) // Slightly longer timeout to ensure smooth scroll completes
     },
-    [stories.length, readingMode, activeStoryIndex],
+    [stories, readingMode, activeStoryIndex, isTransitioning], // Added isTransitioning to dependencies
   )
 
-  // Scroll snapping and index update logic (simplified from StoryFeed)
+  // Scroll snapping and index update logic
   useEffect(() => {
     const element = storyViewerRef.current
     if (!element) return
 
+    let scrollTimeout: NodeJS.Timeout | null = null;
+
     const handleScroll = () => {
-      if (isTransitioning) return // Don't update index during programmatic scroll
+      if (isTransitioning) return
 
-      let newIndex: number
-      if (readingMode === "page") {
-        const storyHeight = element.clientHeight
-        newIndex = Math.round(element.scrollTop / storyHeight)
-      } else {
-        const storyWidth = element.clientWidth
-        newIndex = Math.round(element.scrollLeft / storyWidth)
+      // Clear any existing timeout to avoid premature index updates
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
       }
 
-      if (newIndex >= 0 && newIndex < stories.length && newIndex !== activeStoryIndex) {
-        setActiveStoryIndex(newIndex)
-        // Update active audio when story changes
-        setActiveAudio(stories[newIndex]?.audio_url || null)
-      }
+      // Set a new timeout to update index only after scrolling has likely stopped
+      scrollTimeout = setTimeout(() => {
+        let newIndex: number
+        if (readingMode === "page") {
+          const storyHeight = element.clientHeight
+          newIndex = storyHeight > 0 ? Math.round(element.scrollTop / storyHeight) : activeStoryIndex;
+        } else {
+          const storyWidth = element.clientWidth
+          newIndex = storyWidth > 0 ? Math.round(element.scrollLeft / storyWidth) : activeStoryIndex;
+        }
+
+        if (newIndex >= 0 && newIndex < stories.length && newIndex !== activeStoryIndex) {
+          setActiveStoryIndex(newIndex)
+          setActiveAudio(stories[newIndex]?.audio_url || null)
+        }
+      }, 150); // Debounce scroll events
     }
 
-    // Use debounce or throttle if performance becomes an issue
     element.addEventListener("scroll", handleScroll, { passive: true })
-    return () => element.removeEventListener("scroll", handleScroll)
-  }, [isTransitioning, readingMode, stories.length, activeStoryIndex])
+    return () => {
+      element.removeEventListener("scroll", handleScroll)
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+      }
+    }
+  }, [isTransitioning, readingMode, stories, activeStoryIndex]) // Updated dependencies
 
   // Handle touch events for story navigation
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (isTransitioning) return; // Ignore touch if transitioning
     setTouchStartX(e.touches[0].clientX)
     setTouchStartY(e.touches[0].clientY)
   }
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!storyViewerRef.current || e.changedTouches.length === 0) return
+    if (!storyViewerRef.current || e.changedTouches.length === 0 || isTransitioning) return;
 
     const touchEndX = e.changedTouches[0].clientX
     const touchEndY = e.changedTouches[0].clientY
     const deltaX = touchEndX - touchStartX
     const deltaY = touchEndY - touchStartY
 
-    // Determine if this is a significant swipe (lower threshold for better response)
-    const isSignificantHorizontalSwipe = Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY)
-    const isSignificantVerticalSwipe = Math.abs(deltaY) > 40 && Math.abs(deltaY) > Math.abs(deltaX)
+    // Lower threshold for better responsiveness
+    const swipeThreshold = 30; 
+    const isSignificantHorizontalSwipe = Math.abs(deltaX) > swipeThreshold && Math.abs(deltaX) > Math.abs(deltaY) * 1.5; // Prioritize horizontal if more significant
+    const isSignificantVerticalSwipe = Math.abs(deltaY) > swipeThreshold && Math.abs(deltaY) > Math.abs(deltaX) * 1.5; // Prioritize vertical if more significant
 
+    let navigated = false;
     if (readingMode === "page") {
-      // In page mode, vertical swipe navigates
       if (isSignificantVerticalSwipe) {
         if (deltaY > 0 && activeStoryIndex > 0) {
-          // Swipe down - previous story
-          e.preventDefault()
           navigateToStory(activeStoryIndex - 1)
-          return true
+          navigated = true;
         } else if (deltaY < 0 && activeStoryIndex < stories.length - 1) {
-          // Swipe up - next story
-          e.preventDefault()
           navigateToStory(activeStoryIndex + 1)
-          return true
+          navigated = true;
         }
       }
-    } else {
-      // In scroll mode, horizontal swipe navigates
+    } else { // Scroll mode
       if (isSignificantHorizontalSwipe) {
         if (deltaX > 0 && activeStoryIndex > 0) {
-          // Swipe right - previous story 
-          e.preventDefault()
           navigateToStory(activeStoryIndex - 1)
-          return true
+          navigated = true;
         } else if (deltaX < 0 && activeStoryIndex < stories.length - 1) {
-          // Swipe left - next story
-          e.preventDefault()
           navigateToStory(activeStoryIndex + 1)
-          return true
+          navigated = true;
         }
       }
     }
-    
-    return false
+    if (navigated) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
   }
 
   // Add keyboard navigation
@@ -256,29 +254,29 @@ export default function StoryViewer({ stories, initialIndex, onClose }: StoryVie
       {/* Stories container */}
       <div
         ref={storyViewerRef}
-        className={`story-list h-full w-full ${
-          readingMode === "page" ? "flex flex-col overflow-y-auto" : "flex flex-row overflow-x-auto"
-        }`}
+        className={cn(
+          "story-list h-full w-full overflow-hidden",
+          readingMode === "page" ? "flex flex-col" : "flex flex-row"
+        )}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         style={{
-          height: "auto",
-          minHeight: "100%",
           scrollSnapType: readingMode === "page" ? "y mandatory" : "x mandatory",
-          scrollBehavior: "smooth"
+          scrollBehavior: "smooth",
+          WebkitOverflowScrolling: "touch",
+          overscrollBehavior: "contain",
         }}
       >
         {stories.map((story, index) => (
           <div
-            key={index}
-            className={`story-item min-w-full min-h-full h-auto ${readingMode === "page" ? "" : "inline-block"} sm:px-1 md:px-2 lg:px-3 w-full box-border overflow-auto`}
+            key={story.id || index}
+            className={cn(
+              "story-item relative flex-shrink-0 w-full h-full overflow-auto",
+              readingMode === "page" ? "snap-start" : "snap-center"
+            )}
             style={{ 
-              scrollSnapAlign: "start", 
-              position: "relative", 
               zIndex: index === activeStoryIndex ? 10 : 1,
-              opacity: 1,
-              flex: "0 0 100%",
-              maxWidth: "100%"
+              scrollSnapStop: "always",
             }}
           >
             <StoryContainer
@@ -287,6 +285,7 @@ export default function StoryViewer({ stories, initialIndex, onClose }: StoryVie
               toggleSidebar={() => {}}
               isActive={index === activeStoryIndex}
               activeAudio={index === activeStoryIndex}
+              isInStoryViewer={true}
             />
           </div>
         ))}
@@ -294,3 +293,5 @@ export default function StoryViewer({ stories, initialIndex, onClose }: StoryVie
     </div>
   )
 }
+
+

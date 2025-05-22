@@ -257,14 +257,19 @@ body {
   isolation: isolate;
 }
 
-.story-feed {
-  scroll-snap-type: x mandatory !important;
-  scroll-snap-type: y mandatory !important;
-  scroll-behavior: smooth !important;
-  -webkit-overflow-scrolling: touch;
+/* Story feed and scrolling - TikTok style vertical scrolling */
+.story-feed, .story-list {
   display: flex;
+  flex-direction: column; /* Always vertical for TikTok-style */
   position: relative;
-  isolation: isolate;
+  isolation: isolate; /* Create a new stacking context */
+  touch-action: pan-y; /* Optimize for vertical swiping */
+  height: 100%;
+  width: 100%;
+  scroll-snap-type: y mandatory; /* Always snap on y-axis */
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 .story-pages::-webkit-scrollbar {
@@ -281,37 +286,46 @@ body {
   isolation: isolate;
 }
 
-.story-wrapper {
-  scroll-snap-align: start !important;
-  scroll-snap-stop: always;
+.story-wrapper, .story-item {
   isolation: isolate;
   position: relative;
   inset: 0;
+  flex: 0 0 100%; /* Each story takes full container height */
+  height: 100%;
+  min-height: 100%;
+  width: 100%;
+  scroll-snap-align: start; /* Snap to start of container */
+  scroll-snap-stop: always; /* Always stop at snap points */
+  box-sizing: border-box;
+  touch-action: pan-y; /* Optimize for vertical swiping */
+  overflow: hidden; /* Hide overflowing content */
 }
 
-.story-item {
-  scroll-snap-align: start !important;
-  scroll-snap-stop: always;
-  isolation: isolate;
-  position: relative;
-  inset: 0;
+/* Override any previous styles that might affect the TikTok vertical scroll */
+.story-feed[class*="flex-col"] .story-wrapper,
+.story-list[class*="flex-col"] .story-item,
+.story-feed:not([class*="flex-col"]) .story-wrapper,
+.story-list:not([class*="flex-col"]) .story-item {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  flex: 0 0 100%;
 }
 
-/* Enhanced swipe navigation */
+/* Ensure smooth scrolling and proper touch handling on mobile devices */
 @media (pointer: coarse) {
   .story-feed,
-  .story-list,
-  .story-pages {
-    touch-action: pan-x pan-y;
-    -webkit-overflow-scrolling: touch;
+  .story-list {
+    scroll-behavior: smooth;
+    scroll-snap-type: y mandatory;
+    touch-action: pan-y;
   }
-  
-  .story-wrapper,
-  .story-item,
-  .story-page {
-    scroll-snap-align: start;
-    scroll-snap-stop: always;
-  }
+}
+
+/* Hide scrollbars but allow scrolling */
+.story-feed::-webkit-scrollbar,
+.story-list::-webkit-scrollbar {
+  display: none;
 }
 
 /* Story content fills available space */
@@ -556,28 +570,17 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  transition: all 0.3s ease-in-out;
-  animation: fadeInRight 0.3s ease-in-out;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
-@keyframes fadeInRight {
-  from {
-    opacity: 0;
-    transform: translateX(15px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.action-button {
-  transition: all 0.2s ease;
-  position: relative;
-}
-
-.action-button:active {
-  transform: scale(0.95);
+.action-buttons.show {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(0);
 }
 
 /* Enhanced action button styles */
@@ -1087,6 +1090,20 @@ body:not(.home-tab) .editor-page ~ .shared-audio-player {
   border: none;
   outline: none;
   cursor: pointer;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.audio-control-btn.is-playing {
+  background-color: var(--highlight) !important;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+}
+
+.audio-control-btn:hover {
+  transform: scale(1.1);
+}
+
+.audio-control-btn:active {
+  transform: scale(0.95);
 }
 
 .audio-progress-container {
@@ -1236,27 +1253,39 @@ body:not(.home-tab) .editor-page ~ .shared-audio-player {
   display: flex;
   position: relative;
   isolation: isolate; /* Create a new stacking context */
+  touch-action: pan-x pan-y;
+  height: 100%;
+  width: 100%;
 }
 
 .story-wrapper, .story-item {
   isolation: isolate;
   position: relative;
   inset: 0;
+  flex-shrink: 0;
+  flex-grow: 0;
+  scroll-snap-align: start;
+  height: 100%;
+  width: 100%;
+  touch-action: pan-x pan-y;
 }
 
 /* Ensure each item is properly positioned in the flow */
 .story-feed[class*="flex-col"] .story-wrapper,
 .story-list[class*="flex-col"] .story-item {
   width: 100%;
-  height: auto;
+  height: 100%;
   min-height: 100%;
+  flex: 0 0 100%;
 }
 
 .story-feed:not([class*="flex-col"]) .story-wrapper,
 .story-list:not([class*="flex-col"]) .story-item {
   width: 100%;
+  height: 100%;
   flex-shrink: 0;
   flex-grow: 0;
+  flex: 0 0 100%;
 }
 
 /* Improve container positioning and behavior */
@@ -1275,4 +1304,226 @@ body:not(.home-tab) .editor-page ~ .shared-audio-player {
 .story-page {
   position: relative;
   isolation: isolate;
+}
+
+.story-feed::-webkit-scrollbar {
+  display: none;
+}
+
+/* Enhanced Smooth transitions for better TikTok-like experience */
+.story-feed {
+  transition: transform 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
+  -webkit-transform-style: preserve-3d;
+  scroll-behavior: smooth !important;
+  overscroll-behavior-y: contain;
+  background-color: transparent;
+  perspective: 1000px;
+}
+
+.story-wrapper {
+  transition: opacity 0.35s cubic-bezier(0.19, 1, 0.22, 1), transform 0.35s cubic-bezier(0.19, 1, 0.22, 1);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
+  -webkit-transform-style: preserve-3d;
+}
+
+/* Enhanced animation for story entrance - TikTok-like */
+@keyframes tiktokSlideIn {
+  0% {
+    opacity: 0.5;
+    transform: translateY(20px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.story-wrapper.active {
+  animation: tiktokSlideIn 0.35s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+  z-index: 10;
+}
+
+/* Enhanced version of scroll indicator for TikTok style */
+.story-scroll-indicator {
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 36px;
+  opacity: 0.7;
+  animation: tiktokBounce 2s infinite;
+  z-index: 20;
+  pointer-events: none;
+  filter: drop-shadow(0 0 2px rgba(0,0,0,0.3));
+}
+
+@keyframes tiktokBounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0) translateX(-50%);
+  }
+  40% {
+    transform: translateY(-12px) translateX(-50%);
+  }
+  60% {
+    transform: translateY(-6px) translateX(-50%);
+  }
+}
+
+/* Improved story-feed snapping behavior */
+.story-feed, .story-list {
+  scroll-snap-type: y mandatory !important;
+  scroll-behavior: smooth !important;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+}
+
+/* Audio loading animation */
+@keyframes audioLoading {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.audio-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.audio-loading:before {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: audioLoading 0.8s linear infinite;
+}
+
+/* Bottom navigation and header transitions for mobile */
+.app-header, .bottom-nav {
+  transition: transform 0.3s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+  will-change: transform, opacity;
+}
+
+/* Bottom navigation shown by default on mobile */
+@media (max-width: 1024px) {
+  body.hide-ui .bottom-nav {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  
+  body.hide-ui .app-header {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  
+  /* Ensure the eye toggle button is always visible */
+  body.hide-ui .reading-mode-toggle {
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+  
+  /* Show nav in these important contexts */
+  body.hide-ui.story-fullscreen-active .bottom-nav,
+  body.hide-ui.story-fullscreen-active .app-header {
+    transform: none;
+    opacity: 0; /* Keep hidden in fullscreen mode */
+  }
+}
+
+/* Better action button placement on mobile */
+@media (max-width: 768px) {
+  .action-buttons {
+    bottom: 90px !important; /* Position above bottom nav */
+    right: 12px !important;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+  }
+  
+  .action-buttons.show {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  /* Position above bottom nav, but not covering it */
+  .reading-mode-toggle {
+    bottom: 90px !important;
+    right: 16px !important;
+  }
+  
+  .page-indicator {
+    bottom: 90px !important;
+  }
+}
+
+/* Enhanced narrative scrolling */
+.story-feed:before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.05), transparent);
+  z-index: 5;
+  opacity: 0.5;
+}
+
+/* Ensure consistent positioning of reading mode toggle */
+.reading-mode-toggle {
+  position: fixed;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: var(--highlight);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  z-index: 120;
+}
+
+.reading-mode-toggle:active {
+  transform: scale(0.95);
+}
+
+/* Position eye toggle button consistently across screens */
+@media (max-width: 768px) {
+  .reading-mode-toggle {
+    bottom: 90px !important;
+    right: 16px !important;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1023px) {
+  .reading-mode-toggle {
+    bottom: 120px !important;
+    right: 16px !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .reading-mode-toggle {
+    bottom: 40px !important;
+    right: 24px !important;
+  }
 }

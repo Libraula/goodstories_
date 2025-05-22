@@ -10,11 +10,19 @@ interface AudioContextType {
   duration: number
   isMuted: boolean
   currentStoryId: string | null
-  setAudioUrl: (url: string | null, storyId?: string | null) => void
+  isLoading: boolean
+  setAudioUrl: (url: string | null, storyId?: string | null, metadata?: AudioMetadata) => void
   togglePlay: () => void
   toggleMute: () => void
   setProgress: (progress: number) => void
   stopAudio: () => void
+}
+
+// Add interface for audio metadata
+interface AudioMetadata {
+  title?: string;
+  author?: string;
+  artwork?: string;
 }
 
 const defaultContext: AudioContextType = {
@@ -24,6 +32,7 @@ const defaultContext: AudioContextType = {
   duration: 0,
   isMuted: false,
   currentStoryId: null,
+  isLoading: false,
   setAudioUrl: () => {},
   togglePlay: () => {},
   toggleMute: () => {},
@@ -71,6 +80,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const [duration, setDuration] = useState(0)
   const [isMuted, setIsMuted] = useState(false)
   const [currentStoryId, setCurrentStoryId] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
   
   // Use refs to track state without triggering re-renders
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -78,6 +88,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const isAudioReady = useRef<boolean>(false)
   const updateInterval = useRef<NodeJS.Timeout | null>(null)
   const pendingUrlSets = useRef<number>(0) // Track pending setAudioUrl calls
+  const metadataRef = useRef<AudioMetadata | null>(null)
   
   // Create audio element on mount
   useEffect(() => {
@@ -140,8 +151,18 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   }, []);
   
   // Function to set a new audio URL
-  const setAudioUrl = (url: string | null, storyId?: string | null) => {
-    console.log("setAudioUrl called with:", url, "storyId:", storyId);
+  const setAudioUrl = (url: string | null, storyId?: string | null, metadata?: AudioMetadata) => {
+    console.log("setAudioUrl called with:", url, "storyId:", storyId, "metadata:", metadata);
+    
+    // Set loading indicator
+    setIsLoading(true);
+    
+    // Save metadata for later use
+    if (metadata) {
+      metadataRef.current = metadata;
+    } else {
+      metadataRef.current = null;
+    }
     
     // Immediately clear audio if url is null or empty
     if (!url || url.trim() === '') {
@@ -159,6 +180,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       setCurrentTime(0);
       setDuration(0);
       isAudioReady.current = false;
+      setIsLoading(false); // Clear loading state
       return;
     }
     
@@ -170,6 +192,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     setTimeout(() => {
       // Only process if this is still the most recent call
       if (currentCount !== pendingUrlSets.current) {
+        setIsLoading(false); // Clear loading if superseded
         return;
       }
       
@@ -193,6 +216,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       // Skip if URL hasn't changed - IMPORTANT: helps avoid reloading loop
       if (formattedUrl === lastUrlRef.current) {
         console.log("URL unchanged, skipping:", formattedUrl);
+        setIsLoading(false); // Clear loading state
         return;
       }
       
@@ -208,6 +232,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       
       if (!audioRef.current) {
         console.error("Audio element not initialized");
+        setIsLoading(false); // Clear loading state
         return;
       }
       
@@ -224,16 +249,19 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         if (isFinite(audio.duration) && audio.duration > 0) {
           setDuration(audio.duration);
           isAudioReady.current = true;
+          setIsLoading(false); // Clear loading state
         } else {
           console.warn("Invalid duration detected:", audio.duration);
           // Force a default duration if we get Infinity
           setDuration(300); // Default to 5 minutes
+          setIsLoading(false); // Still clear loading state
         }
       };
       
       audio.oncanplay = () => {
         console.log("Audio can play");
         isAudioReady.current = true;
+        setIsLoading(false); // Ensure loading state is cleared
         
         // If duration is still infinity, set a default
         if (!isFinite(audio.duration) || audio.duration <= 0) {
@@ -254,16 +282,27 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         setIsPlaying(false);
         setCurrentTime(0);
         audio.currentTime = 0;
+        setIsLoading(false); // Ensure loading is cleared
       };
       
-      audio.onerror = (e) => {
+      audio.onerror = (event) => {
+        // Get error details from the audio element
         const error = audio.error;
-        console.error("Audio error:", error || "Unknown error");
+        
+        // Create a safer error message that won't crash the app
+        let errorDetails = {
+          code: error ? error.code : 'unknown',
+          message: error ? error.message : 'Unknown audio error',
+          event: event instanceof Event ? event.type : 'Unknown event'
+        };
+        
+        console.error("Audio error details:", errorDetails);
         
         setIsPlaying(false);
         isAudioReady.current = false;
+        setIsLoading(false); // Ensure loading is cleared on error
         
-        // Log detailed error
+        // Log detailed error with better error handling
         let errorMessage = "Unknown audio error";
         if (error) {
           switch (error.code) {
@@ -279,10 +318,35 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             case 4: // MEDIA_ERR_SRC_NOT_SUPPORTED
               errorMessage = "Audio format or MIME type not supported by browser";
               break;
+            default:
+              errorMessage = error.message || "Unknown error code: " + error.code;
           }
         }
         
-        console.error("Audio error details:", errorMessage);
+        console.error("Audio error type:", errorMessage);
+        
+        // Try to recover automatically
+        setTimeout(() => {
+          if (lastUrlRef.current && lastUrlRef.current !== audio.src) {
+            console.log("Trying to recover by reloading audio source");
+            setIsLoading(true); // Show loading again for recovery attempt
+            
+            // Try using our proxy as a fallback
+            if (!lastUrlRef.current.includes('/api/audio-proxy')) {
+              const encodedUrl = encodeURIComponent(lastUrlRef.current);
+              const proxyUrl = `/api/audio-proxy?url=${encodedUrl}`;
+              
+              console.log("Using proxy for recovery:", proxyUrl);
+              audio.src = proxyUrl;
+              lastUrlRef.current = proxyUrl;
+              setAudioUrlState(proxyUrl);
+            } else {
+              audio.src = lastUrlRef.current;
+            }
+            
+            audio.load();
+          }
+        }, 1000);
       };
       
       // Apply mute state
@@ -341,6 +405,57 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }, 100); // Short delay to debounce
   };
   
+  // Function to update MediaSession metadata
+  const updateMediaSessionMetadata = () => {
+    if ('mediaSession' in navigator && metadataRef.current) {
+      const metadata = metadataRef.current;
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          // Format title to include the app name for better visibility in notifications
+          title: `${metadata.title || 'Story Audio'} - GoodStories`,
+          artist: metadata.author || 'GoodStories Author',
+          album: 'GoodStories', // Keep album name consistently set
+          artwork: metadata.artwork ? [
+            { src: metadata.artwork, sizes: '512x512', type: 'image/png' }
+          ] : [
+            { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+            { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }
+          ]
+        });
+        
+        // Set up media session action handlers
+        navigator.mediaSession.setActionHandler('play', () => {
+          togglePlay();
+        });
+        navigator.mediaSession.setActionHandler('pause', () => {
+          togglePlay();
+        });
+        navigator.mediaSession.setActionHandler('stop', () => {
+          stopAudio();
+        });
+        
+        // Add seekto if supported
+        if ('setPositionState' in navigator.mediaSession) {
+          navigator.mediaSession.setActionHandler('seekto', (details) => {
+            if (audioRef.current && details.seekTime) {
+              audioRef.current.currentTime = details.seekTime;
+              setCurrentTime(details.seekTime);
+              
+              // Update position state
+              navigator.mediaSession.setPositionState({
+                duration: audioRef.current.duration || 0,
+                playbackRate: audioRef.current.playbackRate,
+                position: details.seekTime
+              });
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error setting media session metadata:', error);
+      }
+    }
+  }
+  
   // Toggle play/pause
   const togglePlay = () => {
     console.log("Toggle play called, isPlaying:", isPlaying);
@@ -357,67 +472,77 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     
     const audio = audioRef.current;
     
-    // Make sure source is set
-    if (!audio.src || audio.src !== lastUrlRef.current) {
-      console.log("Audio source mismatch, resetting to:", lastUrlRef.current);
-      
-      // Try to set the source correctly
-      try {
-        // First check accessibility
-        checkAudioUrl(lastUrlRef.current).then(isValid => {
-          if (isValid) {
-            audio.src = lastUrlRef.current!;
-            audio.load();
-            
-            // Wait for can play
-            audio.oncanplay = () => {
-              playAudio(audio);
-            };
-          } else {
-            console.error("Audio URL is not accessible");
-          }
-        });
-      } catch (error) {
-        console.error("Error resetting audio source:", error);
-      }
+    // If currently playing, pause it immediately
+    if (isPlaying) {
+      // Pause playback
+      console.log("Pausing audio playback at position:", audio.currentTime);
+      audio.pause();
+      setIsPlaying(false);
       return;
     }
     
-    if (isPlaying) {
-      // Pause playback
-      audio.pause();
-      setIsPlaying(false);
-    } else {
-      playAudio(audio);
+    // If we have a currentTime stored, try to resume from that position
+    console.log("Attempting to play audio, current position:", audio.currentTime);
+    
+    // Set loading state
+    setIsLoading(true);
+    
+    // Make sure source is set correctly before attempting to play
+    if (!audio.src || audio.src !== lastUrlRef.current) {
+      audio.src = lastUrlRef.current;
+      // Force a reload if the source was changed
+      audio.load();
     }
+    
+    // Ensure media session metadata is set
+    updateMediaSessionMetadata();
+    
+    // Try to play with proper error handling
+    playAudio(audio);
   };
   
   // Helper function to handle play with error handling
   const playAudio = (audio: HTMLAudioElement) => {
-    console.log("Attempting to play audio");
+    console.log("Attempting to play audio at position:", audio.currentTime);
     
     // Force currentTime update if it's at the end
     if (audio.currentTime >= audio.duration - 0.1) {
+      console.log("Audio at end, resetting to beginning");
       audio.currentTime = 0;
     }
     
     // Ensure audio source is valid before playing
     if (!audio.src) {
       console.error("No audio source set");
+      setIsLoading(false); // Clear loading state
       return;
     }
     
+    // Set playing state optimistically for better UI response
+    setIsPlaying(true);
+    
     // Try to play with proper error handling
-    const playPromise = audio.play();
+    let playPromise;
+    try {
+      playPromise = audio.play();
+    } catch (error) {
+      console.error("Error starting playback:", error);
+      setIsPlaying(false);
+      setIsLoading(false); // Clear loading state on error
+      return;
+    }
+    
     if (playPromise !== undefined) {
       playPromise
         .then(() => {
-          console.log("Audio playing successfully");
-          setIsPlaying(true);
+          console.log("Audio playing successfully at position:", audio.currentTime);
+          // State already set for optimistic UI
+          setIsLoading(false); // Clear loading on successful play
         })
         .catch((error) => {
           console.error("Error playing audio:", error);
           setIsPlaying(false);
+          setIsLoading(false); // Clear loading on error
           
           // Try to autofix common issues
           if (error.name === "NotSupportedError" || error.message?.includes("format") || error.message?.includes("MIME")) {
@@ -430,8 +555,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
               // Try using our proxy API for any file causing format issues
               if (!fixedUrl.includes('/api/audio-proxy')) {
                 console.log("Using audio proxy as fallback for format error");
+                setIsLoading(true); // Show loading for recovery attempt
                 const encodedUrl = encodeURIComponent(fixedUrl);
                 fixedUrl = `/api/audio-proxy?url=${encodedUrl}`;
+                
+                // Remember the current position to resume from
+                const currentPos = audio.currentTime;
                 
                 // Update our references to the new URL
                 lastUrlRef.current = fixedUrl;
@@ -441,12 +570,35 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
                 audio.src = fixedUrl;
                 audio.load();
                 
-                // Try once more after a delay
-                setTimeout(() => {
-                  audio.play().catch(secondError => {
-                    console.error("Second attempt failed with proxy:", secondError);
-                  });
-                }, 500);
+                // Try to restore position when ready
+                audio.oncanplay = () => {
+                  if (currentPos > 0) {
+                    try {
+                      audio.currentTime = currentPos;
+                    } catch (e) {
+                      console.warn("Could not restore playback position:", e);
+                    }
+                  }
+                  
+                  // Try once more after a delay
+                  setTimeout(() => {
+                    setIsLoading(false); // Clear loading state before retry
+                    const retryPromise = audio.play();
+                    if (retryPromise) {
+                      retryPromise
+                        .then(() => {
+                          console.log("Retry with proxy successful");
+                          setIsPlaying(true);
+                        })
+                        .catch(secondError => {
+                          console.error("Second attempt failed with proxy:", secondError);
+                          setIsPlaying(false);
+                        });
+                    } else {
+                      setIsPlaying(true); // Older browsers
+                    }
+                  }, 500);
+                };
                 return;
               }
               
@@ -455,15 +607,42 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
                 fixedUrl += '?download=true';
               }
               
+              // Remember position before reload
+              const currentPos = audio.currentTime;
+              
               audio.src = fixedUrl;
               audio.load();
               
-              // Try once more after a delay
-              setTimeout(() => {
-                audio.play().catch(secondError => {
-                  console.error("Second attempt failed:", secondError);
-                });
-              }, 500);
+              // Restore position when ready
+              audio.oncanplay = () => {
+                setIsLoading(false); // Clear loading when can play
+                
+                if (currentPos > 0) {
+                  try {
+                    audio.currentTime = currentPos;
+                  } catch (e) {
+                    console.warn("Could not restore playback position:", e);
+                  }
+                }
+                
+                // Try once more after a delay
+                setTimeout(() => {
+                  const retryPromise = audio.play();
+                  if (retryPromise) {
+                    retryPromise
+                      .then(() => {
+                        console.log("Retry successful");
+                        setIsPlaying(true);
+                      })
+                      .catch(secondError => {
+                        console.error("Second attempt failed:", secondError);
+                        setIsPlaying(false);
+                      });
+                  } else {
+                    setIsPlaying(true); // Older browsers
+                  }
+                }, 500);
+              };
             }
           } else if (error.name === "AbortError") {
             // User aborted or context changed, ignore
@@ -474,9 +653,24 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             
             // Try refreshing the audio element
             if (lastUrlRef.current) {
+              setIsLoading(true); // Show loading for refresh attempt
+              const currentPos = audio.currentTime;
+              
               setTimeout(() => {
                 audio.src = lastUrlRef.current!;
                 audio.load();
+                
+                audio.oncanplay = () => {
+                  setIsLoading(false); // Clear loading on can play
+                  
+                  if (currentPos > 0) {
+                    try {
+                      audio.currentTime = currentPos;
+                    } catch (e) {
+                      console.warn("Could not restore playback position:", e);
+                    }
+                  }
+                };
               }, 300);
             }
           }
@@ -484,6 +678,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     } else {
       // Older browsers might not return a promise
       setIsPlaying(true);
+      setIsLoading(false); // Clear loading state for older browsers
     }
   };
   
@@ -545,6 +740,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         duration,
         isMuted,
         currentStoryId,
+        isLoading,
         setAudioUrl,
         togglePlay,
         toggleMute,

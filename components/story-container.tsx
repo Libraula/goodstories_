@@ -41,15 +41,19 @@ export default function StoryContainer({
   toggleSidebar,
   isActive = false,
   activeAudio = true,
+  isInStoryViewer = false,
+  showActionButtons = false,
 }: {
   story?: Story
   showSidebar: boolean
   toggleSidebar: () => void
   isActive?: boolean
   activeAudio?: boolean
+  isInStoryViewer?: boolean
+  showActionButtons?: boolean
 }) {
-  // Initialize with action buttons hidden by default
-  const [showActionIcons, setShowActionIcons] = useState(false);
+  // Initialize with action buttons visibility from prop
+  const [showActionIcons, setShowActionIcons] = useState(showActionButtons);
 
   // Initialize all state hooks at the top level
   const [currentPage, setCurrentPage] = useState(0)
@@ -77,6 +81,7 @@ export default function StoryContainer({
   const [isStoryLoading, setIsStoryLoading] = useState(true)
   const [isAuthor, setIsAuthor] = useState(false) // Moved up to be with other state declarations
   const [isDesktop, setIsDesktop] = useState(false) // Add state to track desktop view
+  const [isAudioLoading, setIsAudioLoading] = useState(false) // Add state for audio loading
 
   // Initialize all refs at the top level
   const pagesContainerRef = useRef<HTMLDivElement>(null)
@@ -89,13 +94,18 @@ export default function StoryContainer({
   const { user } = useAuth()
   const { openModal } = useAuthModal()
   const { toast } = useToast()
-  const { setAudioUrl, isPlaying, togglePlay, isMuted, toggleMute } = useAudio()
+  const { setAudioUrl, isPlaying, togglePlay, isMuted, toggleMute, isLoading } = useAudio()
 
   // Constant for transition duration in milliseconds
   const TRANSITION_DURATION = 300
 
   // REMOVED: No longer automatically set audio URL when story changes
   // Now we'll only set the audio URL when explicitly requested by the user
+
+  // Effect to sync showActionButtons prop with state
+  useEffect(() => {
+    setShowActionIcons(showActionButtons);
+  }, [showActionButtons]);
 
   // Auto-play audio when story becomes active - simplified approach
   useEffect(() => {
@@ -108,12 +118,20 @@ export default function StoryContainer({
       const autoplayTimer = setTimeout(() => {
         console.log("Setting up audio for story:", story.id);
         
-        // Set URL
+        // Set URL with enhanced metadata
         if (story.audio_url) {
-          setAudioUrl(story.audio_url, story.id);
+          setAudioUrl(
+            story.audio_url, 
+            story.id,
+            {
+              title: story.title || "Story Audio",
+              author: `${story.author?.name || "Unknown Author"} · GoodStories`,
+              artwork: story.pages?.[0]?.image || story.author?.avatar || "/placeholder.svg"
+            }
+          );
         }
         
-                  // Wait for audio to be ready before playing
+        // Wait for audio to be ready before playing
         setTimeout(() => {
           if (!isPlaying) {
             console.log("Attempting to play audio");
@@ -386,6 +404,14 @@ export default function StoryContainer({
   useEffect(() => {
     const container = pagesContainerRef.current
     if (!container) return
+
+    // Adjust scroll behavior based on context
+    if (isInStoryViewer) {
+      container.style.overscrollBehavior = "contain"; // Prevent overscrolling in StoryViewer
+    } else {
+      container.style.overscrollBehavior = ""; // Default behavior in StoryFeed
+    }
+
     const handleScroll = () => {
       if (isTransitioning) return
       const dimension = readingMode === "page" ? container.clientWidth : container.clientHeight
@@ -397,37 +423,73 @@ export default function StoryContainer({
     }
     container.addEventListener("scroll", handleScroll)
     return () => container.removeEventListener("scroll", handleScroll)
-  }, [currentPage, story, isTransitioning, readingMode])
+  }, [currentPage, story, isTransitioning, readingMode, isInStoryViewer])
 
   // Update scroll position when reading mode changes
   useEffect(() => {
-    const element = pagesContainerRef.current
-    if (element && story) {
-      const dimension = readingMode === "page" ? element.clientWidth : element.clientHeight
-      const position = dimension * currentPage
+    const element = pagesContainerRef.current;
+    if (element && story && typeof currentPage === 'number' && typeof readingMode === 'string') {
+      const dimension = readingMode === "page" ? element.clientWidth : element.clientHeight;
+      const position = dimension * currentPage;
       element.scrollTo({
         [readingMode === "page" ? "left" : "top"]: position,
         behavior: "auto",
-      })
+      });
     }
-  }, [readingMode, currentPage, story])
+  }, [readingMode, currentPage, story, isInStoryViewer]);
 
   // Function to scroll to a specific page
   const scrollToPage = (index: number) => {
-    if (!pagesContainerRef.current || isTransitioning || !story || index < 0 || index >= story.pages.length) return
-    setIsTransitioning(true)
-    setCurrentPage(index)
-    const container = pagesContainerRef.current
-    const dimension = readingMode === "page" ? container.clientWidth : container.clientHeight
-    const position = dimension * index
-    container.scrollTo({
+    if (!pagesContainerRef.current || isTransitioning || !story || index < 0 || index >= story.pages.length) return;
+    setIsTransitioning(true);
+    setCurrentPage(index);
+    const scrollContainer = pagesContainerRef.current;
+    
+    // Ensure all pages are ready for scrolling
+    const pageElements = scrollContainer.querySelectorAll('.story-page');
+    pageElements.forEach((page, i) => {
+      const htmlPage = page as HTMLElement;
+      // Set proper z-index for current and other pages
+      htmlPage.style.zIndex = i === index ? '5' : '1';
+      // Add transition effect for smoother appearance
+      htmlPage.style.transition = 'opacity 0.3s ease, transform 0.3s cubic-bezier(0.33, 1, 0.68, 1)';
+    });
+    
+    // Continue to respect reading mode for pages within each story
+    const dimension = readingMode === "page" ? scrollContainer.clientWidth : scrollContainer.clientHeight;
+    const position = dimension * index;
+    
+    // First use auto scrolling for immediate feedback
+    scrollContainer.scrollTo({
       [readingMode === "page" ? "left" : "top"]: position,
-      behavior: "auto",
-    })
+      behavior: "auto"
+    });
+    
+    // Force layout reflow
+    void scrollContainer.offsetHeight;
+    
+    // Then use smooth scrolling with enhanced easing for a more fluid animation
     setTimeout(() => {
-      setIsTransitioning(false)
-    }, TRANSITION_DURATION)
-  }
+      if (scrollContainer.scrollTo) {
+        try {
+          // Use custom scrollBehavior if available
+          scrollContainer.style.scrollBehavior = 'smooth';
+          scrollContainer.scrollTo({
+            [readingMode === "page" ? "left" : "top"]: position,
+            behavior: "smooth"
+          });
+        } catch (e) {
+          // Fallback for older browsers
+          scrollContainer.scrollTo(readingMode === "page" ? position : 0, readingMode === "page" ? 0 : position);
+        }
+      }
+      
+      // Set a timeout to clear the transitioning state
+      setTimeout(() => {
+        setIsTransitioning(false);
+      }, TRANSITION_DURATION);
+    }, 50);
+  };
 
   // Function to toggle like
   const toggleLike = async () => {
@@ -607,12 +669,6 @@ export default function StoryContainer({
   // Function to toggle action icons
   const toggleActionIcons = () => {
     setShowActionIcons(!showActionIcons)
-    // Force hide after a short delay if they're being shown
-    if (!showActionIcons) {
-      setTimeout(() => {
-        setShowActionIcons(false)
-      }, 5000) // Auto-hide after 5 seconds
-    }
   }
 
   // Function to view author profile
@@ -633,13 +689,21 @@ export default function StoryContainer({
       if (isPlaying) {
         togglePlay(); // This will pause
       } else {
-        // First set URL directly - no need to clear first with our new implementation
-        setAudioUrl(story.audio_url, story.id);
+        // Set URL with enhanced metadata
+        setAudioUrl(
+          story.audio_url, 
+          story.id,
+          {
+            title: story.title || "Story Audio",
+            author: `${story.author?.name || "Unknown Author"} · GoodStories`,
+            artwork: story.pages?.[0]?.image || story.author?.avatar || "/placeholder.svg"
+          }
+        );
         
         // Brief delay before play
         setTimeout(() => {
-                              togglePlay();
-                  }, 200);
+          togglePlay();
+        }, 200);
       }
     } else if (isAuthor) {
       // Only show audio generator if user is the author
@@ -704,16 +768,41 @@ export default function StoryContainer({
     const touchEndY = e.changedTouches[0].clientY
     const deltaX = touchEndX - touchStartX
     const deltaY = touchEndY - touchStartY
-    const swipeThreshold = 50
-    if (readingMode === "page") {
-      if (Math.abs(deltaX) > swipeThreshold && Math.abs(deltaX) > Math.abs(deltaY)) {
-        if (deltaX > 0 && currentPage > 0) scrollToPage(currentPage - 1)
-        else if (deltaX < 0 && story && currentPage < story.pages.length - 1) scrollToPage(currentPage + 1)
+    const swipeThreshold = 30 // Lower threshold for better responsiveness
+
+    // Determine which axes to check based on the reading mode
+    // For pages within a story, continue to use readingMode
+    if (Math.abs(deltaX) > swipeThreshold && Math.abs(deltaX) > Math.abs(deltaY)) {
+      // Horizontal swipe - relevant for page mode within stories
+      if (readingMode === "page") {
+        if (deltaX > 0 && currentPage > 0) {
+          scrollToPage(currentPage - 1)
+          e.preventDefault()
+          e.stopPropagation() // Prevent this from bubbling to story-feed
+          return
+        }
+        else if (deltaX < 0 && story && currentPage < story.pages.length - 1) {
+          scrollToPage(currentPage + 1)
+          e.preventDefault()
+          e.stopPropagation() // Prevent this from bubbling to story-feed
+          return
+        }
       }
-    } else {
-      if (Math.abs(deltaY) > swipeThreshold && Math.abs(deltaY) > Math.abs(deltaX)) {
-        if (deltaY > 0 && currentPage > 0) scrollToPage(currentPage - 1)
-        else if (deltaY < 0 && story && currentPage < story.pages.length - 1) scrollToPage(currentPage + 1)
+    } 
+    else if (Math.abs(deltaY) > swipeThreshold && Math.abs(deltaY) > Math.abs(deltaX)) {
+      // Vertical swipe - relevant for scroll mode within stories
+      if (readingMode === "scroll") {
+        if (pagesContainerRef.current) {
+          const container = pagesContainerRef.current;
+          // Check if we're at the top or bottom of the container
+          const isAtTop = container.scrollTop <= 0;
+          const isAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 5;
+          
+          // Only prevent propagation if we're not at the edges
+          if (!isAtTop && !isAtBottom) {
+            e.stopPropagation(); // Don't let parent handle this if we're in the middle of scrolling content
+          }
+        }
       }
     }
   }
@@ -732,11 +821,22 @@ export default function StoryContainer({
 
   // Function to handle when audio is generated
   const handleAudioGenerated = (newAudioUrl: string) => {
-    setAudioUrl(newAudioUrl)
-    setShowAudioGenerator(false)
+    // Set the audio URL with proper metadata including GoodStories name
+    setAudioUrl(
+      newAudioUrl,
+      story?.id,
+      {
+        title: story?.title || "Generated Audio",
+        author: `${story?.author?.name || "Unknown Author"} · GoodStories`,
+        artwork: story?.pages?.[0]?.image || story?.author?.avatar || "/placeholder.svg"
+      }
+    );
+    
+    setShowAudioGenerator(false);
+    
     // Start playing the audio
     if (!isPlaying) {
-      togglePlay()
+      togglePlay();
     }
   }
 
@@ -766,7 +866,7 @@ export default function StoryContainer({
   return (
     <div
       ref={containerRef}
-      className={`story-container w-full h-full relative p-0 bg-transparent lg:min-h-auto ${isFullScreen ? "fullscreen-story" : ""}`}
+      className={`story-container w-full h-full relative p-0 bg-transparent lg:min-h-auto ${isFullScreen ? "fullscreen-story" : ""} ${isInStoryViewer ? "in-story-viewer" : ""}`}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -819,26 +919,39 @@ export default function StoryContainer({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    e.preventDefault();
                     
                     if (story.audio_url) {
                       // Simple approach: if playing, just toggle
                       if (isPlaying) {
+                        console.log("Pausing audio");
                         togglePlay(); // This will pause
                       } else {
-                        // First set the URL (only once)
-                        setAudioUrl(story.audio_url, story.id);
+                        console.log("Playing audio", story.audio_url);
+                        // First set the URL with enhanced metadata (only once)
+                        setAudioUrl(
+                          story.audio_url, 
+                          story.id,
+                          {
+                            title: story.title || "Story Audio",
+                            author: `${story.author?.name || "Unknown Author"} · GoodStories`,
+                            artwork: story.pages?.[0]?.image || story.author?.avatar || "/placeholder.svg"
+                          }
+                        );
                         
                         // Small delay to ensure URL is set before playing
                         setTimeout(() => {
                           togglePlay();
-                        }, 200);
+                        }, 300);
                       }
                     }
                   }}
                   className={`audio-button p-1.5 ${isPlaying ? 'audio-playing' : ''} w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border border-paper-dark/20 dark:border-paper/20 ${isPlaying ? "bg-highlight text-white" : ""}`}
                   aria-label={isPlaying ? "Pause audio" : "Play audio"}
                 >
-                  {isPlaying ? (
+                  {isLoading ? (
+                    <div className="audio-loading"></div>
+                  ) : isPlaying ? (
                     <div className="flex items-center">
                       <Pause className="h-4 w-4" />
                     </div>
@@ -863,7 +976,10 @@ export default function StoryContainer({
             scrollbarWidth: "none",
             WebkitOverflowScrolling: "touch",
             scrollSnapType: readingMode === "page" ? "x mandatory" : "y mandatory",
-            scrollBehavior: "smooth"
+            scrollBehavior: "smooth",
+            scrollSnapStop: "always",
+            transition: "transform 0.3s cubic-bezier(0.33, 1, 0.68, 1)",
+            overscrollBehavior: "contain"
           }}
         >
           {story.pages.map((page, index) => (
@@ -876,11 +992,15 @@ export default function StoryContainer({
                 { 
                   minHeight: readingMode === "page" ? `${containerHeight}px` : "auto", 
                   height: "auto",
-                  scrollSnapAlign: "start" 
+                  scrollSnapAlign: "center",
+                  scrollSnapStop: "always",
+                  transition: "opacity 0.3s ease, transform 0.3s cubic-bezier(0.33, 1, 0.68, 1)"
                 } : 
                 { 
                   height: "auto",
-                  scrollSnapAlign: "start" 
+                  scrollSnapAlign: "center",
+                  scrollSnapStop: "always",
+                  transition: "opacity 0.3s ease, transform 0.3s cubic-bezier(0.33, 1, 0.68, 1)"
                 }
               }
             >
@@ -967,11 +1087,11 @@ export default function StoryContainer({
         </div>
       </div>
 
-      {/* Action buttons - update z-index and positioning for fullscreen */}
+      {/* Action buttons - update visibility based on showActionIcons */}
       {isActive && (
         <div
           className={`action-buttons fixed ${isFullScreen ? "bottom-20 right-6" : "bottom-[155px] sm:bottom-[145px] lg:bottom-[125px] right-4 lg:right-6"} flex flex-col ${isFullScreen ? "gap-4" : "gap-3 lg:gap-4"} z-[110] transition-all duration-300 ${
-            showActionIcons ? "opacity-100" : "hidden opacity-0 pointer-events-none invisible"
+            showActionIcons ? "show" : ""
           }`}
         >
           {/* Author Profile Button - Now at the top */}
@@ -1080,12 +1200,12 @@ export default function StoryContainer({
         </div>
       )}
 
-      {/* Eye toggle button - update positioning for fullscreen */}
+      {/* Eye toggle button - update positioning for fullscreen and always show */}
       {isActive && (
         <button
           className={`reading-mode-toggle fixed ${isFullScreen ? "bottom-[45px] z-[120]" : "bottom-[145px]"} right-4 w-10 h-10 rounded-full flex items-center justify-center bg-highlight text-white border border-paper-dark/20 dark:border-paper/20 transition-all shadow-md animate-in fade-in duration-300`}
           onClick={toggleActionIcons}
-          aria-label="Show action icons"
+          aria-label={showActionIcons ? "Hide action icons" : "Show action icons"}
         >
           {showActionIcons ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
         </button>

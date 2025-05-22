@@ -147,6 +147,8 @@ export function SharedAudioPlayer() {
   // Handle play button click with improved error handling
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault();
+    console.log("Play button clicked, current state:", isPlaying);
     togglePlay();
   }
 
@@ -164,8 +166,12 @@ export function SharedAudioPlayer() {
       <div className="tiktok-audio-player">
         <button 
           onClick={handlePlayClick} 
-          className="audio-control-btn" 
+          className={`audio-control-btn ${isPlaying ? 'is-playing' : ''}`}
           aria-label={isPlaying ? "Pause" : "Play"}
+          style={{ 
+            backgroundColor: isPlaying ? "#6d4c41" : "#8d6e63",
+            transform: isPlaying ? 'scale(1.05)' : 'scale(1)'
+          }}
         >
           {isPlaying ? <Pause size={16} /> : <Play size={16} />}
         </button>

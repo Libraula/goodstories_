@@ -74,11 +74,20 @@ export default function StoryFeed() {
 
   // Add a new state for tracking sidebar collapse state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  // Add state to control action buttons visibility - start HIDDEN on mobile by default
+  const [showActionButtons, setShowActionButtons] = useState(false)
+  const [hideUI, setHideUI] = useState(false)
 
   // Add a function to toggle sidebar collapse state
   const toggleSidebar = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed)
   }
+
+  // Update the useEffect to hide action buttons by default on mobile
+  useEffect(() => {
+    // Hide action buttons by default on mobile devices
+    setShowActionButtons(false);
+  }, [isMobile]);
 
   useEffect(() => {
     const fetchStories = async () => {
@@ -140,47 +149,61 @@ export default function StoryFeed() {
 
     const feedElement = storyFeedRef.current;
     
-    // Force scroll position calculation based on index
-    const targetPosition = readingMode === "page" 
-      ? index * feedElement.clientHeight 
-      : index * feedElement.clientWidth;
-    
-    // First make invisible any story that's not the target
+    // Ensure all stories are visible with correct positioning
     const storyWrappers = feedElement.querySelectorAll('.story-wrapper');
     storyWrappers.forEach((wrapper, i) => {
       const htmlWrapper = wrapper as HTMLElement;
       // Update z-index and opacity to ensure proper visibility
       htmlWrapper.style.zIndex = i === index ? '10' : '1';
       htmlWrapper.style.opacity = '1';
+      // Set visibility to visible for all stories to ensure they can be scrolled to
+      htmlWrapper.style.visibility = 'visible';
+      // Ensure stories have correct scroll position
+      htmlWrapper.style.position = 'relative';
+      // Add TikTok-like transition effects - scale slightly for 3D effect
+      htmlWrapper.style.transition = 'transform 0.4s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.4s cubic-bezier(0.19, 1, 0.22, 1)';
+      htmlWrapper.style.transform = i === index ? 'scale(1)' : (i < index ? 'translateY(-5%) scale(0.97)' : 'translateY(5%) scale(0.97)');
     });
     
-    // Use scrollTo with smooth behavior for a nice transition
+    // Force scroll position calculation based on index - always vertical in TikTok style
+    const targetPosition = index * feedElement.clientHeight;
+    
+    // Use scrollTo with instant behavior first to ensure correct positioning
     feedElement.scrollTo({
-      [readingMode === "page" ? "top" : "left"]: targetPosition,
-      behavior: "smooth"
+      top: targetPosition,
+      behavior: "auto"
     });
     
-    // Set a timeout to handle the end of transition
+    // Force a layout reflow to ensure the browser has processed the position change
+    void feedElement.offsetHeight;
+    
+    // Then after a short delay, apply smooth scrolling
     setTimeout(() => {
-      // Verify the scroll position and adjust if needed
-      const currentPosition = readingMode === "page" 
-        ? feedElement.scrollTop 
-        : feedElement.scrollLeft;
+      // Apply TikTok-like easing curve for smoother scrolling
+      feedElement.style.scrollBehavior = 'smooth';
+      feedElement.style.transition = 'transform 0.4s cubic-bezier(0.19, 1, 0.22, 1)';
+      
+      feedElement.scrollTo({
+        top: targetPosition,
+        behavior: "smooth"
+      });
+      
+      // Set a timeout to handle the end of transition
+      setTimeout(() => {
+        // One final position check
+        const currentPosition = feedElement.scrollTop;
+          
+        if (Math.abs(currentPosition - targetPosition) > 10) {
+          // Final position correction if needed
+          feedElement.scrollTo({
+            top: targetPosition,
+            behavior: "auto"
+          });
+        }
         
-      const expectedPosition = readingMode === "page" 
-        ? index * feedElement.clientHeight 
-        : index * feedElement.clientWidth;
-      
-      // If position is not correct, force it
-      if (Math.abs(currentPosition - expectedPosition) > 10) {
-        feedElement.scrollTo({
-          [readingMode === "page" ? "top" : "left"]: expectedPosition,
-          behavior: "auto" // Use instant positioning as fallback
-        });
-      }
-      
-      setIsTransitioning(false);
-    }, 500);
+        setIsTransitioning(false);
+      }, 500);
+    }, 40); // Slightly faster delay for more responsive feel
   }
 
   // Function to handle tab switching with authentication check
@@ -231,20 +254,11 @@ export default function StoryFeed() {
       const now = Date.now()
       const feedContainer = storyFeedRef.current
 
-      // Determine scroll position and direction
-      let currentPosition: number
-      let direction: "horizontal" | "vertical"
-
-      if (readingMode === "page") {
-        currentPosition = feedContainer.scrollTop
-        direction = "vertical"
-      } else {
-        currentPosition = feedContainer.scrollLeft
-        direction = "horizontal"
-      }
-
-      // Update scroll direction
-      setScrollDirection(direction)
+      // Determine scroll position - always vertical in TikTok style
+      const currentPosition = feedContainer.scrollTop
+      
+      // Update scroll direction - always vertical
+      setScrollDirection("vertical")
 
       // Calculate scroll speed and determine if user is actively scrolling
       const timeDelta = now - lastScrollTime
@@ -259,31 +273,17 @@ export default function StoryFeed() {
       if (isScrolling && timeDelta > 150 && positionDelta < 5) {
         setIsScrolling(false)
 
-        // Calculate which story we should snap to
-        let newIndex: number
-
-        if (readingMode === "page") {
-          const storyHeight = feedContainer.clientHeight
-          newIndex = Math.round(currentPosition / storyHeight)
-        } else {
-          const storyWidth = feedContainer.clientWidth
-          newIndex = Math.round(currentPosition / storyWidth)
-        }
+        // Calculate which story we should snap to - always using height in TikTok style
+        const storyHeight = feedContainer.clientHeight
+        const newIndex = Math.round(currentPosition / storyHeight)
 
         // Ensure index is valid
         if (newIndex >= 0 && newIndex < stories.length && newIndex !== activeStoryIndex) {
           // Use smooth scrolling for the snap
-          if (readingMode === "page") {
-            feedContainer.scrollTo({
-              top: newIndex * feedContainer.clientHeight,
-              behavior: "smooth",
-            })
-          } else {
-            feedContainer.scrollTo({
-              left: newIndex * feedContainer.clientWidth,
-              behavior: "smooth",
-            })
-          }
+          feedContainer.scrollTo({
+            top: newIndex * feedContainer.clientHeight,
+            behavior: "smooth",
+          })
           setActiveStoryIndex(newIndex)
           
           // Stop audio when scrolling to a different story
@@ -296,26 +296,14 @@ export default function StoryFeed() {
       setLastScrollTime(now)
 
       // Update active story index based on current scroll position
-      if (readingMode === "page") {
-        const storyHeight = feedContainer.clientHeight
-        const index = Math.round(feedContainer.scrollTop / storyHeight)
+      const storyHeight = feedContainer.clientHeight
+      const index = Math.round(feedContainer.scrollTop / storyHeight)
 
-        if (index >= 0 && index < stories.length && index !== activeStoryIndex) {
-          setActiveStoryIndex(index)
-          
-          // Stop audio when changing to a different story
-          stopAudio()
-        }
-      } else {
-        const storyWidth = feedContainer.clientWidth
-        const index = Math.round(feedContainer.scrollLeft / storyWidth)
-
-        if (index >= 0 && index < stories.length && index !== activeStoryIndex) {
-          setActiveStoryIndex(index)
-          
-          // Stop audio when changing to a different story
-          stopAudio()
-        }
+      if (index >= 0 && index < stories.length && index !== activeStoryIndex) {
+        setActiveStoryIndex(index)
+        
+        // Stop audio when changing to a different story
+        stopAudio()
       }
     }
 
@@ -323,26 +311,15 @@ export default function StoryFeed() {
     const handleWheel = (e: WheelEvent) => {
       if (!storyFeedRef.current || isTransitioning) return
 
-      // Prevent default only if we're handling the scroll
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && readingMode === "page") {
-        // Vertical scrolling in page mode - navigate between stories
+      // For TikTok-style, we prioritize vertical scrolling with the wheel
+      if (Math.abs(e.deltaY) > 0) {
+        // Determine direction of scroll
         if (e.deltaY > 0 && activeStoryIndex < stories.length - 1) {
           // Scroll down - next story
           e.preventDefault()
           navigateToStory(activeStoryIndex + 1)
         } else if (e.deltaY < 0 && activeStoryIndex > 0) {
           // Scroll up - previous story
-          e.preventDefault()
-          navigateToStory(activeStoryIndex - 1)
-        }
-      } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && readingMode === "scroll") {
-        // Horizontal scrolling in scroll mode - navigate between stories
-        if (e.deltaX > 0 && activeStoryIndex < stories.length - 1) {
-          // Scroll right - next story
-          e.preventDefault()
-          navigateToStory(activeStoryIndex + 1)
-        } else if (e.deltaX < 0 && activeStoryIndex > 0) {
-          // Scroll left - previous story
           e.preventDefault()
           navigateToStory(activeStoryIndex - 1)
         }
@@ -359,7 +336,7 @@ export default function StoryFeed() {
         feedContainer.removeEventListener("wheel", handleWheel)
       }
     }
-  }, [activeStoryIndex, readingMode, isScrolling, lastScrollTime, lastScrollPosition, stories.length, isTransitioning])
+  }, [activeStoryIndex, isScrolling, lastScrollTime, lastScrollPosition, stories.length, isTransitioning, stopAudio])
 
   // Handle login modal close
   const handleLoginModalClose = () => {
@@ -380,52 +357,35 @@ export default function StoryFeed() {
 
   // Handle touch events for story navigation with smooth transitions
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (activeTab !== "homeTab") return; // Only handle touches in home tab
     setTouchStartX(e.touches[0].clientX)
     setTouchStartY(e.touches[0].clientY)
     setIsScrolling(false) // Reset scrolling state on touch start
   }
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!storyFeedRef.current || e.changedTouches.length === 0) return
+    if (!storyFeedRef.current || e.changedTouches.length === 0 || activeTab !== "homeTab" || isTransitioning) return
 
     const touchEndX = e.changedTouches[0].clientX
     const touchEndY = e.changedTouches[0].clientY
     const deltaX = touchEndX - touchStartX
     const deltaY = touchEndY - touchStartY
 
-    // Determine if this is a significant swipe (lower threshold to improve responsiveness)
-    const isSignificantHorizontalSwipe = Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY)
-    const isSignificantVerticalSwipe = Math.abs(deltaY) > 40 && Math.abs(deltaY) > Math.abs(deltaX)
-
-    if (readingMode === "page") {
-      // In page mode, vertical swipe navigates between stories
-      if (isSignificantVerticalSwipe) {
-        if (deltaY > 0 && activeStoryIndex > 0) {
-          // Swipe down - go to previous story
-          e.preventDefault()
-          navigateToStory(activeStoryIndex - 1)
-          return true
-        } else if (deltaY < 0 && activeStoryIndex < stories.length - 1) {
-          // Swipe up - go to next story
-          e.preventDefault()
-          navigateToStory(activeStoryIndex + 1)
-          return true
-        }
-      }
-    } else {
-      // In scroll mode, horizontal swipe navigates between stories
-      if (isSignificantHorizontalSwipe) {
-        if (deltaX > 0 && activeStoryIndex > 0) {
-          // Swipe right - go to previous story
-          e.preventDefault()
-          navigateToStory(activeStoryIndex - 1)
-          return true
-        } else if (deltaX < 0 && activeStoryIndex < stories.length - 1) {
-          // Swipe left - go to next story
-          e.preventDefault()
-          navigateToStory(activeStoryIndex + 1)
-          return true
-        }
+    // Determine if this is a significant swipe (lower threshold for better response)
+    const isSignificantVerticalSwipe = Math.abs(deltaY) > 20 && Math.abs(deltaY) > Math.abs(deltaX)
+    
+    // In TikTok-style, we prioritize vertical swipes regardless of reading mode
+    if (isSignificantVerticalSwipe) {
+      if (deltaY > 0 && activeStoryIndex > 0) {
+        // Swipe down - go to previous story
+        e.preventDefault()
+        navigateToStory(activeStoryIndex - 1)
+        return true
+      } else if (deltaY < 0 && activeStoryIndex < stories.length - 1) {
+        // Swipe up - go to next story
+        e.preventDefault()
+        navigateToStory(activeStoryIndex + 1)
+        return true
       }
     }
     
@@ -437,26 +397,69 @@ export default function StoryFeed() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (activeTab !== "homeTab" || isTransitioning) return
 
-      if (readingMode === "page") {
-        // In page mode, up/down arrows navigate between stories
-        if (e.key === "ArrowUp" && activeStoryIndex > 0) {
-          navigateToStory(activeStoryIndex - 1)
-        } else if (e.key === "ArrowDown" && activeStoryIndex < stories.length - 1) {
-          navigateToStory(activeStoryIndex + 1)
-        }
-      } else {
-        // In scroll mode, left/right arrows navigate between stories
-        if (e.key === "ArrowLeft" && activeStoryIndex > 0) {
-          navigateToStory(activeStoryIndex - 1)
-        } else if (e.key === "ArrowRight" && activeStoryIndex < stories.length - 1) {
-          navigateToStory(activeStoryIndex + 1)
-        }
+      // For TikTok-style, we always use up/down arrows
+      if (e.key === "ArrowUp" && activeStoryIndex > 0) {
+        navigateToStory(activeStoryIndex - 1)
+      } else if (e.key === "ArrowDown" && activeStoryIndex < stories.length - 1) {
+        navigateToStory(activeStoryIndex + 1)
       }
     }
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [activeStoryIndex, readingMode, activeTab, stories.length, isTransitioning])
+  }, [activeStoryIndex, activeTab, stories.length, isTransitioning, navigateToStory])
+
+  // Function to toggle UI visibility - TikTok style
+  const toggleUIVisibility = () => {
+    if (activeTab === "homeTab") {
+      const newHideState = !hideUI;
+      setHideUI(newHideState);
+      
+      // Also update body class for CSS targeting
+      if (newHideState) {
+        document.body.classList.add('hide-ui');
+      } else {
+        document.body.classList.remove('hide-ui');
+      }
+    }
+  }
+  
+  // Function to specifically toggle action buttons visibility
+  const toggleActionButtons = () => {
+    if (activeTab === "homeTab") {
+      setShowActionButtons(!showActionButtons);
+    }
+  }
+  
+  // Reset UI visibility when changing tabs
+  useEffect(() => {
+    setHideUI(false);
+    document.body.classList.remove('hide-ui');
+    setShowActionButtons(false); // Always reset to hidden when changing tabs
+  }, [activeTab]);
+
+  // Handle click on the story area
+  const handleStoryTap = (e: React.MouseEvent) => {
+    // If the tap is on a button or interactive element, don't toggle UI
+    const target = e.target as HTMLElement;
+    
+    // Special handling for reading-mode-toggle (eye button)
+    if (target.closest('.reading-mode-toggle')) {
+      // Let the button handle its own click
+      return;
+    }
+    
+    if (target.closest('button') || target.closest('a') || 
+        target.closest('.action-buttons') || target.closest('.comments-section-wrapper') ||
+        target.closest('.audio-button')) {
+      return;
+    }
+    
+    // Only handle taps in the story area for UI elements (header/footer), not action buttons
+    if (activeTab === "homeTab" && !isTransitioning) {
+      toggleUIVisibility();
+    }
+  };
 
   return (
     <div className="app-container relative w-full h-screen mx-auto overflow-hidden shadow-md bg-paper dark:bg-paper-dark md:h-screen md:w-full md:my-0 md:rounded-none lg:w-full lg:grid lg:grid-cols-[auto_1fr] lg:grid-rows-[60px_1fr]">
@@ -627,20 +630,19 @@ export default function StoryFeed() {
         id="homeTab"
       >
         <div
-          className={`story-feed h-full w-full ${
-            readingMode === "page"
-              ? "flex flex-col overflow-y-auto snap-y snap-mandatory"
-              : "flex overflow-x-auto snap-x snap-mandatory"
-          } lg:max-h-none`}
+          className={`story-feed h-full w-full flex flex-col overflow-y-auto snap-y snap-mandatory lg:max-h-none`}
           ref={storyFeedRef}
           style={{
-            scrollSnapType: readingMode === "page" ? "y mandatory" : "x mandatory",
             scrollBehavior: "smooth",
-            height: "auto",
-            minHeight: "100%"
+            height: "100%", // Ensure full height for scroll container
+            minHeight: "100%",
+            WebkitOverflowScrolling: "touch",
+            msOverflowStyle: "none",
+            scrollbarWidth: "none",
           }}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
+          onClick={handleStoryTap}
         >
           {isLoading ? (
             <div className="flex items-center justify-center w-full h-full">
@@ -653,14 +655,15 @@ export default function StoryFeed() {
             stories.map((story, index) => (
               <div
                 key={index}
-                className={`story-wrapper ${readingMode === "page" ? "min-h-full h-auto snap-start" : "min-w-full snap-center"} sm:px-1 md:px-2 lg:px-4 w-full box-border overflow-auto`}
+                className={`story-wrapper min-h-full h-full snap-start sm:px-1 md:px-2 lg:px-4 w-full box-border overflow-hidden ${index === activeStoryIndex ? 'active' : ''}`} // Added 'active' class for current story
                 style={{ 
-                  scrollSnapAlign: "start",
+                  // scrollSnapAlign is in className via snap-start
                   position: "relative",
                   zIndex: index === activeStoryIndex ? 10 : 1, 
                   opacity: 1,
-                  flex: "0 0 100%",
-                  maxWidth: "100%"
+                  flex: "0 0 100%", // Each story takes full height
+                  maxWidth: "100%",
+                  scrollSnapStop: "always"
                 }}
               >
                 <StoryContainer
@@ -668,7 +671,17 @@ export default function StoryFeed() {
                   showSidebar={showSidebar}
                   toggleSidebar={() => setShowSidebar(!showSidebar)}
                   isActive={index === activeStoryIndex}
+                  showActionButtons={showActionButtons}
                 />
+                
+                {/* Scroll indicator - only show on active story and if there are more stories */}
+                {index === activeStoryIndex && index < stories.length - 1 && (
+                  <div className="story-scroll-indicator">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 5v14M19 12l-7 7-7-7" />
+                    </svg>
+                  </div>
+                )}
               </div>
             ))
           ) : (
@@ -722,7 +735,7 @@ export default function StoryFeed() {
         <ProfileTab isMobile={isMobile} />
       </div>
 
-      {/* Bottom Navigation - Hide on desktop */}
+      {/* Bottom Navigation - Hide on desktop, always visible on mobile */}
       <nav className="bottom-nav fixed bottom-0 w-full flex justify-around py-4 bg-paper dark:bg-paper-dark border-t border-paper-dark/20 dark:border-paper/20 z-[100] lg:hidden">
         <NavItem
           icon={<Home className="w-6 h-6 mb-1" />}

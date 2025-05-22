@@ -266,6 +266,7 @@ export async function POST(request: NextRequest) {
           
         if (updateError) {
           console.warn("⚠️ API: Failed to update story record:", updateError);
+          console.warn("⚠️ API: Story ID during failed update:", storyId);
           // Continue anyway as we have the audio URL
         }
       }
