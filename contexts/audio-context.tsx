@@ -164,6 +164,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       metadataRef.current = null;
     }
     
+    // If trying to set the same URL that's already playing, just update metadata and return
+    if (url && url === lastUrlRef.current && isPlaying) {
+      console.log("URL is already playing, just updating metadata");
+      updateMediaSessionMetadata();
+      setIsLoading(false);
+      return;
+    }
+    
     // Immediately clear audio if url is null or empty
     if (!url || url.trim() === '') {
       console.log("No valid URL provided, clearing audio");
@@ -285,124 +293,49 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false); // Ensure loading is cleared
       };
       
-      audio.onerror = (event) => {
-        // Get error details from the audio element
-        const error = audio.error;
-        
-        // Create a safer error message that won't crash the app
-        let errorDetails = {
-          code: error ? error.code : 'unknown',
-          message: error ? error.message : 'Unknown audio error',
-          event: event instanceof Event ? event.type : 'Unknown event'
-        };
-        
-        console.error("Audio error details:", errorDetails);
-        
-        setIsPlaying(false);
-        isAudioReady.current = false;
-        setIsLoading(false); // Ensure loading is cleared on error
-        
-        // Log detailed error with better error handling
-        let errorMessage = "Unknown audio error";
-        if (error) {
-          switch (error.code) {
-            case 1: // MEDIA_ERR_ABORTED
-              errorMessage = "Media loading aborted";
-              break;
-            case 2: // MEDIA_ERR_NETWORK
-              errorMessage = "Network error occurred while loading audio";
-              break;
-            case 3: // MEDIA_ERR_DECODE
-              errorMessage = "Audio decoding error - format may not be supported";
-              break;
-            case 4: // MEDIA_ERR_SRC_NOT_SUPPORTED
-              errorMessage = "Audio format or MIME type not supported by browser";
-              break;
-            default:
-              errorMessage = error.message || "Unknown error code: " + error.code;
-          }
-        }
-        
-        console.error("Audio error type:", errorMessage);
-        
-        // Try to recover automatically
-        setTimeout(() => {
-          if (lastUrlRef.current && lastUrlRef.current !== audio.src) {
-            console.log("Trying to recover by reloading audio source");
-            setIsLoading(true); // Show loading again for recovery attempt
-            
-            // Try using our proxy as a fallback
-            if (!lastUrlRef.current.includes('/api/audio-proxy')) {
-              const encodedUrl = encodeURIComponent(lastUrlRef.current);
-              const proxyUrl = `/api/audio-proxy?url=${encodedUrl}`;
-              
-              console.log("Using proxy for recovery:", proxyUrl);
-              audio.src = proxyUrl;
-              lastUrlRef.current = proxyUrl;
-              setAudioUrlState(proxyUrl);
-            } else {
-              audio.src = lastUrlRef.current;
-            }
-            
-            audio.load();
-          }
-        }, 1000);
-      };
-      
       // Apply mute state
       audio.muted = isMuted;
       
       // Set source and load
       try {
-        // Check if URL is publicly accessible with fetch first
-        checkAudioUrl(formattedUrl).then(isValid => {
-          if (isValid) {
-            console.log("URL is valid and accessible, setting audio source:", formattedUrl);
+        // Use a more reliable method to load audio
+        const sourceURL = formattedUrl;
+        const timestamp = new Date().getTime(); // Add timestamp to prevent caching
+        audio.src = sourceURL.includes('?') ? `${sourceURL}&t=${timestamp}` : `${sourceURL}?t=${timestamp}`;
+        
+        // Force load
+        audio.load();
+        
+        // Set up a timeout for load failures
+        const loadTimeoutId = setTimeout(() => {
+          if (!isAudioReady.current) {
+            console.warn("Audio load timeout, trying proxy");
+            setIsLoading(false);
             
-            // Try to determine the MIME type from the URL extension
-            let mimeType = "";
-            if (formattedUrl.toLowerCase().endsWith('.mp3')) {
-              mimeType = 'audio/mpeg';
-            } else if (formattedUrl.toLowerCase().endsWith('.wav')) {
-              mimeType = 'audio/wav';
-            } else if (formattedUrl.toLowerCase().endsWith('.ogg')) {
-              mimeType = 'audio/ogg';
-            }
-            
-            // For browsers that support source elements, create a more compatible setup
-            if (window.MediaSource || mimeType) {
-              audio.src = formattedUrl;
+            // Try proxy as fallback if not already using it
+            if (!formattedUrl.includes('/api/audio-proxy')) {
+              const encodedUrl = encodeURIComponent(formattedUrl);
+              const proxyUrl = `/api/audio-proxy?url=${encodedUrl}&t=${timestamp}`;
               
-                              // Set proper MIME type if available
-                if (mimeType) {
-                  try {
-                    // Use setAttribute instead of direct property assignment
-                    audio.setAttribute('type', mimeType);
-                  } catch (error) {
-                    // Some browsers don't support this
-                    console.warn("Browser doesn't support setting audio type directly");
-                  }
-                }
-            } else {
-              // Fallback to direct src setting
-              audio.src = formattedUrl;
+              console.log("Switching to proxy URL:", proxyUrl);
+              audio.src = proxyUrl;
+              audio.load();
             }
-            
-            // Force load
-            audio.load();
-          } else {
-            console.error("URL is not accessible:", formattedUrl);
           }
-        }).catch(error => {
-          console.error("Error checking URL accessibility:", error);
-          // Try direct loading as fallback
-          audio.src = formattedUrl;
-          audio.load();
-        });
+        }, 8000); // 8 second timeout
+        
+        // Clean up timeout on successful load
+        audio.oncanplaythrough = () => {
+          clearTimeout(loadTimeoutId);
+          isAudioReady.current = true;
+          setIsLoading(false);
+        };
+        
       } catch (error) {
         console.error("Error setting audio source:", error);
+        setIsLoading(false);
       }
-    }, 100); // Short delay to debounce
+    }, 200); // Short delay to debounce - increased slightly for better stability
   };
   
   // Function to update MediaSession metadata
@@ -456,7 +389,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }
   }
   
-  // Toggle play/pause
+  // Toggle play/pause - prevent interruptions and improve reliability
   const togglePlay = () => {
     console.log("Toggle play called, isPlaying:", isPlaying);
     
@@ -487,18 +420,26 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     // Set loading state
     setIsLoading(true);
     
-    // Make sure source is set correctly before attempting to play
-    if (!audio.src || audio.src !== lastUrlRef.current) {
-      audio.src = lastUrlRef.current;
-      // Force a reload if the source was changed
-      audio.load();
+    // Safety check - if source is not properly set or different, fix it
+    const urlMissing = !audio.src || audio.src.trim() === '';
+    const urlMismatch = lastUrlRef.current && !audio.src.includes(lastUrlRef.current);
+    
+    if (urlMissing || urlMismatch) {
+      console.log("URL missing or mismatch, resetting source");
+      if (lastUrlRef.current) {
+        audio.src = lastUrlRef.current;
+        audio.load();
+      }
     }
     
-    // Ensure media session metadata is set
-    updateMediaSessionMetadata();
-    
-    // Try to play with proper error handling
-    playAudio(audio);
+    // Add a small delay before trying to play to allow any browser UI to complete
+    setTimeout(() => {
+      // Ensure media session metadata is set
+      updateMediaSessionMetadata();
+      
+      // Try to play with proper error handling
+      playAudio(audio);
+    }, 50);
   };
   
   // Helper function to handle play with error handling

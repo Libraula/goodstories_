@@ -1090,7 +1090,7 @@ export default function StoryContainer({
       {/* Action buttons - update visibility based on showActionIcons */}
       {isActive && (
         <div
-          className={`action-buttons fixed ${isFullScreen ? "bottom-20 right-6" : "bottom-[155px] sm:bottom-[145px] lg:bottom-[125px] right-4 lg:right-6"} flex flex-col ${isFullScreen ? "gap-4" : "gap-3 lg:gap-4"} z-[110] transition-all duration-300 ${
+          className={`action-buttons fixed ${isFullScreen ? "bottom-20 right-6" : "bottom-[171px] sm:bottom-[160px] lg:bottom-[138px] right-4 lg:right-6"} flex flex-col ${isFullScreen ? "gap-4" : "gap-3 lg:gap-4"} z-[110] transition-all duration-300 ${
             showActionIcons ? "show" : ""
           }`}
         >
@@ -1200,10 +1200,10 @@ export default function StoryContainer({
         </div>
       )}
 
-      {/* Eye toggle button - update positioning for fullscreen and always show */}
+      {/* Eye toggle button - position 5px above the action buttons */}
       {isActive && (
         <button
-          className={`reading-mode-toggle fixed ${isFullScreen ? "bottom-[45px] z-[120]" : "bottom-[145px]"} right-4 w-10 h-10 rounded-full flex items-center justify-center bg-highlight text-white border border-paper-dark/20 dark:border-paper/20 transition-all shadow-md animate-in fade-in duration-300`}
+          className={`reading-mode-toggle fixed ${isFullScreen ? "bottom-[45px] z-[120]" : "bottom-[176px] sm:bottom-[165px] lg:bottom-[143px]"} right-4 w-10 h-10 rounded-full flex items-center justify-center bg-highlight text-white border border-paper-dark/20 dark:border-paper/20 transition-all shadow-md animate-in fade-in duration-300`}
           onClick={toggleActionIcons}
           aria-label={showActionIcons ? "Hide action icons" : "Show action icons"}
         >

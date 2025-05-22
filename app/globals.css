@@ -1449,7 +1449,7 @@ body:not(.home-tab) .editor-page ~ .shared-audio-player {
 /* Better action button placement on mobile */
 @media (max-width: 768px) {
   .action-buttons {
-    bottom: 90px !important; /* Position above bottom nav */
+    bottom: 100px !important; /* Position above bottom nav - increased by ~10% */
     right: 12px !important;
     opacity: 0;
     visibility: hidden;
@@ -1463,12 +1463,12 @@ body:not(.home-tab) .editor-page ~ .shared-audio-player {
 
   /* Position above bottom nav, but not covering it */
   .reading-mode-toggle {
-    bottom: 90px !important;
+    bottom: 105px !important; /* 5px above the action buttons */
     right: 16px !important;
   }
   
   .page-indicator {
-    bottom: 90px !important;
+    bottom: 100px !important; /* Increased by ~10% */
   }
 }
 
@@ -1509,21 +1509,21 @@ body:not(.home-tab) .editor-page ~ .shared-audio-player {
 /* Position eye toggle button consistently across screens */
 @media (max-width: 768px) {
   .reading-mode-toggle {
-    bottom: 90px !important;
+    bottom: 105px !important; /* 5px above the action buttons */
     right: 16px !important;
   }
 }
 
 @media (min-width: 769px) and (max-width: 1023px) {
   .reading-mode-toggle {
-    bottom: 120px !important;
+    bottom: 137px !important; /* 5px above the action buttons */
     right: 16px !important;
   }
 }
 
 @media (min-width: 1024px) {
   .reading-mode-toggle {
-    bottom: 40px !important;
+    bottom: 49px !important; /* 5px above the action buttons */
     right: 24px !important;
   }
 }
