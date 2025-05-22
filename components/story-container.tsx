@@ -16,7 +16,9 @@ import {
   Volume2,
   Pause,
   Play,
+  MinusCircle,
 } from "lucide-react"
+import FollowButton from "./follow-button"
 import type { Story } from "@/lib/types"
 import CommentsSection from "./comments-section"
 import { useEffect as useWindowEffect } from "react"
@@ -59,6 +61,7 @@ export default function StoryContainer({
   const [currentPage, setCurrentPage] = useState(0)
   const [isLiked, setIsLiked] = useState(false)
   const [isBookmarked, setIsBookmarked] = useState(false)
+  const [isFollowing, setIsFollowing] = useState(false)
   const [likeCount, setLikeCount] = useState(0)
   const [bookmarkCount, setBookmarkCount] = useState(0)
   const [showComments, setShowComments] = useState(false)
@@ -82,6 +85,7 @@ export default function StoryContainer({
   const [isAuthor, setIsAuthor] = useState(false) // Moved up to be with other state declarations
   const [isDesktop, setIsDesktop] = useState(false) // Add state to track desktop view
   const [isAudioLoading, setIsAudioLoading] = useState(false) // Add state for audio loading
+  const [followLoading, setFollowLoading] = useState(false) // Add state for follow loading
 
   // Initialize all refs at the top level
   const pagesContainerRef = useRef<HTMLDivElement>(null)
@@ -265,6 +269,7 @@ export default function StoryContainer({
       if (!user) {
         setIsLiked(false)
         setIsBookmarked(false)
+        setIsFollowing(false)
         return
       }
 
@@ -273,6 +278,7 @@ export default function StoryContainer({
         console.error("Story ID is missing, cannot check interactions.")
         setIsLiked(false)
         setIsBookmarked(false)
+        setIsFollowing(false)
         return
       }
 
@@ -320,12 +326,49 @@ export default function StoryContainer({
             setIsBookmarked(false) // Default to false on error
           }
         }
+        
+        // Check follow status if author_id exists
+        if (story.author_id) {
+          try {
+            setFollowLoading(true)
+            const followUrl = `/api/follows?followingId=${story.author_id}`
+            const followResponse = await fetch(followUrl, {
+              method: "GET",
+              headers: { "Content-Type": "application/json" },
+            })
+
+            if (followResponse.ok) {
+              const followData = await followResponse.json()
+              if (isMounted) {
+                setIsFollowing(followData.isFollowing || false)
+              }
+            } else {
+              console.warn(
+                `Error checking follow status (${followResponse.status}) for author ${story.author_id}:`,
+                await followResponse.text(),
+              )
+              if (isMounted) {
+                setIsFollowing(false) // Default to false on error
+              }
+            }
+          } catch (error) {
+            console.error(`Error fetching follow status for author ${story.author_id}:`, error)
+            if (isMounted) {
+              setIsFollowing(false)
+            }
+          } finally {
+            if (isMounted) {
+              setFollowLoading(false)
+            }
+          }
+        }
       } catch (error) {
         // Catch potential TypeError: Failed to fetch or other network errors
         console.error(`Error fetching interactions for story ${story.id}:`, error)
         if (isMounted) {
           setIsLiked(false)
           setIsBookmarked(false)
+          setIsFollowing(false)
         }
       } finally {
         if (isMounted) {
@@ -341,6 +384,7 @@ export default function StoryContainer({
     } else {
       setIsLiked(false)
       setIsBookmarked(false)
+      setIsFollowing(false)
       setLikeCount(0)
       setBookmarkCount(0)
     }
@@ -1096,44 +1140,30 @@ export default function StoryContainer({
         >
           {/* Author Profile Button - Now at the top */}
           {!isFullScreen && (
-            <button
-              onClick={viewAuthorProfile}
-              className="action-button w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border-2 border-highlight overflow-hidden relative"
-            >
-              <Image
-                src={story.author.avatar || "/placeholder.svg"}
-                alt={story.author.name}
-                width={40}
-                height={40}
-                className="w-full h-full object-cover rounded-full"
-              />
-              {/* Plus icon circle for following - moved to bottom right */}
-              <div
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const isFollowing = e.currentTarget.classList.contains('following');
-                  
-                  if (isFollowing) {
-                    e.currentTarget.classList.remove('following');
-                    toast({
-                      title: "Unfollowed",
-                      description: `You've unfollowed ${story.author.name}`,
-                      variant: "default",
-                    });
-                  } else {
-                    e.currentTarget.classList.add('following');
-                    toast({
-                      title: "Following",
-                      description: `You're now following ${story.author.name}`,
-                      variant: "default",
-                    });
-                  }
-                }}
-                className="absolute bottom-0 right-0 w-4 h-4 rounded-full flex items-center justify-center cursor-pointer bg-highlight hover:bg-highlight/90 transition-all shadow-sm"
+            <div className="relative">
+              <button
+                onClick={viewAuthorProfile}
+                className="action-button w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md bg-paper dark:bg-paper-dark text-ink dark:text-ink-light border-2 border-highlight overflow-hidden"
               >
-                <PlusCircle className="h-2.5 w-2.5 text-white" />
-              </div>
-            </button>
+                <Image
+                  src={story.author.avatar || "/placeholder.svg"}
+                  alt={story.author.name}
+                  width={40}
+                  height={40}
+                  className="w-full h-full object-cover rounded-full"
+                />
+              </button>
+              {/* Follow button - positioned at bottom right */}
+              {story.author_id && user && user.id !== story.author_id && (
+                <div className="absolute bottom-0 right-0 transform translate-x-1 translate-y-1">
+                  <FollowButton 
+                    authorId={story.author_id}
+                    authorName={story.author.name}
+                    variant="small"
+                  />
+                </div>
+              )}
+            </div>
           )}
 
           <button

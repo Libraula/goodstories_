@@ -4,12 +4,13 @@ import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { getUserProfile, getUserStories, followUser, unfollowUser, isFollowingUser } from "@/lib/database"
+import { getUserProfile, getUserStories } from "@/lib/database"
 import { useAuth } from "@/contexts/auth-context"
 import { useAuthModal } from "@/hooks/use-auth-modal"
 import StoryCard from "@/components/story-card"
 import StoryViewer from "@/components/story-viewer" // Import StoryViewer
-import { PlusCircle, MinusCircle, Loader2, ArrowLeft } from "lucide-react"
+import FollowButton from "@/components/follow-button" // Import the new FollowButton component
+import { Loader2, ArrowLeft } from "lucide-react"
 import type { Story } from "@/lib/types"
 
 interface ProfileData {
@@ -49,10 +50,8 @@ export default function ProfilePage() {
         const userStories = await getUserStories(id as string)
         setStories(userStories)
 
-        if (user) {
-          const followStatus = await isFollowingUser(user.id, id as string)
-          setIsFollowing(followStatus)
-        }
+        // Follow status is now checked by the FollowButton component
+        setIsFollowing(false) // Default value, not actually used anymore
       } catch (error) {
         console.error("Error fetching profile data:", error)
       } finally {
@@ -63,43 +62,7 @@ export default function ProfilePage() {
     fetchProfileData()
   }, [id, user])
 
-  const handleFollowToggle = async () => {
-    if (!user) {
-      openModal()
-      return
-    }
-
-    if (!profile) return
-
-    setFollowLoading(true)
-    try {
-      if (isFollowing) {
-        await unfollowUser(user.id, profile.id)
-        setIsFollowing(false)
-        setProfile((prev) => {
-          if (!prev) return null
-          return {
-            ...prev,
-            follower_count: Math.max(0, (prev.follower_count || 0) - 1),
-          }
-        })
-      } else {
-        await followUser(user.id, profile.id)
-        setIsFollowing(true)
-        setProfile((prev) => {
-          if (!prev) return null
-          return {
-            ...prev,
-            follower_count: (prev.follower_count || 0) + 1,
-          }
-        })
-      }
-    } catch (error) {
-      console.error("Error toggling follow status:", error)
-    } finally {
-      setFollowLoading(false)
-    }
-  }
+  // Removed handleFollowToggle as we're now using the FollowButton component
 
   const handleStoryClick = (index: number) => {
     setSelectedStoryIndex(index)
@@ -195,24 +158,13 @@ export default function ProfilePage() {
           </div>
 
           {user && user.id !== profile.id && (
-            <button
-              onClick={handleFollowToggle}
-              disabled={followLoading}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full transition-colors ${
-                isFollowing
-                  ? "bg-paper-dark dark:bg-paper text-ink-light dark:text-ink-dark hover:bg-red-100 dark:hover:bg-red-900"
-                  : "bg-highlight text-white hover:bg-highlight/90"
-              }`}
-            >
-              {followLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : isFollowing ? (
-                <MinusCircle className="h-4 w-4" />
-              ) : (
-                <PlusCircle className="h-4 w-4" />
-              )}
-              {isFollowing ? "Unfollow" : "Follow"}
-            </button>
+            <FollowButton 
+              authorId={profile.id}
+              authorName={profile.name || "Author"}
+              showText
+              variant="default"
+              className="px-4 py-2"
+            />
           )}
         </div>
       </div>
