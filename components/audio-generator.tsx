@@ -74,7 +74,7 @@ export default function AudioGenerator({ story, onAudioGenerated }: AudioGenerat
         .join(" ")
 
       // Limit text length to avoid API limits
-      const maxLength = 4000
+      const maxLength = 95000
       const truncatedText = storyText.length > maxLength ? storyText.substring(0, maxLength) + "..." : storyText
 
       console.log("Generating audio for story", {
