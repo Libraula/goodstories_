@@ -691,23 +691,20 @@ export default function StoryContainer({
 
   // Function to toggle comments
   const toggleComments = () => {
-    if (!user || !story || !story.id) {
-      openModal()
-      return
+    if (!story || !story.id) {
+      return;
     }
     
-    console.log("Toggling comments:", !showComments);
-    document.body.classList.toggle('comments-open', !showComments);
+    if (!user) {
+      openModal();
+      return;
+    }
+    
+    // Toggle comments visibility
     setShowComments(!showComments);
     
-    // Force a small delay to make sure the UI updates
-    setTimeout(() => {
-      if (!showComments) {
-        console.log("Comments should now be visible");
-      } else {
-        console.log("Comments should now be hidden");
-      }
-    }, 100);
+    // The body class is now handled by the comments component
+    // This prevents issues with scrolling and improves animation
   }
 
   // Function to toggle action icons
@@ -1250,14 +1247,9 @@ export default function StoryContainer({
         </div>
       )}
 
-      {/* Comments section - render when shown */}
+      {/* Comments section - using our updated TikTok-style component */}
       {showComments && story?.id && (
-        <div className="comments-section-wrapper fixed inset-0 z-[200] flex items-end justify-center">
-          <div className="comments-overlay fixed inset-0 bg-black/50" onClick={toggleComments}></div>
-          <div className="comments-container relative w-full h-[80vh] max-w-md bg-paper dark:bg-paper-dark rounded-t-xl overflow-hidden shadow-xl z-10 animate-in slide-in-from-bottom">
-            <CommentsSection storyId={story.id} onClose={toggleComments} />
-          </div>
-        </div>
+        <CommentsSection storyId={story.id} onClose={toggleComments} />
       )}
     </div>
   )

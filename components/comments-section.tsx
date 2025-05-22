@@ -49,6 +49,9 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
   const { openModal } = useAuthModal()
   const { toast } = useToast()
   const [optimisticLikes, setOptimisticLikes] = useState<{ [commentId: string]: { liked: boolean; count: number } }>({})
+  const [commentCount, setCommentCount] = useState(0)
+  const [isDraggedUp, setIsDraggedUp] = useState(false)
+  const startY = useRef<number | null>(null)
 
   // Fetch comments when component mounts
   useEffect(() => {
@@ -72,6 +75,7 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
       if (!response.ok) throw new Error("Failed to fetch comments")
       const { data } = await response.json()
       setComments(data || [])
+      setCommentCount(data?.length || 0)
     } catch (error) {
       console.error("Error fetching comments:", error)
       setComments([]) // Ensure comments is always an array
@@ -86,8 +90,8 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
 
     // Auto-resize the textarea
     if (commentInputRef.current) {
-      commentInputRef.current.style.height = "80px" // Reset height
-      commentInputRef.current.style.height = `${Math.min(commentInputRef.current.scrollHeight, 200)}px` // Set new height with max limit
+      commentInputRef.current.style.height = "56px" // Reset height
+      commentInputRef.current.style.height = `${Math.min(commentInputRef.current.scrollHeight, 120)}px` // Set new height with max limit
     }
   }
 
@@ -124,10 +128,11 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
           // Add the new comment to the top of the list
           setComments([data, ...comments])
           setNewComment("")
+          setCommentCount(prev => prev + 1)
 
           // Reset textarea height
           if (commentInputRef.current) {
-            commentInputRef.current.style.height = "80px"
+            commentInputRef.current.style.height = "56px"
           }
 
           // Scroll to top to show the new comment
@@ -135,17 +140,10 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
             commentsContainerRef.current.scrollTop = 0
           }
 
-          // Show success toast
-          toast({
-            title: "Comment posted!",
-            description: "Your comment has been added to the discussion.",
-            variant: "default",
-          })
-
           // Remove animation class after a delay
           setTimeout(() => {
             setAnimatingCommentId(null)
-          }, 1500)
+          }, 800)
         } catch (error) {
           console.error("Error posting comment:", error)
           toast({
@@ -214,106 +212,170 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
           const errorData = await response.json().catch(() => ({}))
           throw new Error(errorData.error || `Failed to ${newLiked ? "like" : "unlike"} comment`)
         }
-
-        // Success - API call confirmed the optimistic update
-        toast({
-          title: newLiked ? "Comment liked!" : "Like removed",
-          description: newLiked ? "You liked this comment." : "You removed your like from this comment.",
-          variant: "default",
-        })
       } catch (error: any) {
         console.error("Error liking/unliking comment:", error)
+        
+        // Rollback optimistic update on error
+        setComments(originalComments)
+        setOptimisticLikes(originalOptimisticState)
+        
         toast({
           title: "Error",
           description: error.message || "Could not update like status.",
           variant: "destructive",
         })
-
-        // Rollback optimistic update on error
-        setComments(originalComments)
-        setOptimisticLikes(originalOptimisticState)
       } finally {
         // End animation after a delay
         setTimeout(() => {
           setAnimatingCommentId(null)
-        }, 600)
+        }, 400)
       }
     }, openModal)
   }
+  
+  // Add touch gesture handlers for TikTok-like interaction  
+  const handleTouchStart = (e: React.TouchEvent) => {
+    startY.current = e.touches[0].clientY
+  }
+  
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (startY.current === null) return
+    
+    const currentY = e.touches[0].clientY
+    const diff = currentY - startY.current
+    
+    // If user drags down more than 50px, close the comments
+    if (diff > 100) {
+      setIsDraggedUp(false)
+      startY.current = null
+      onClose()
+    }
+  }
+  
+  const handleTouchEnd = () => {
+    startY.current = null
+  }
+  
+  useEffect(() => {
+    // Animate in on mount
+    const timer = setTimeout(() => {
+      setIsDraggedUp(true)
+    }, 10)
+    
+    // Add class to body to prevent scrolling
+    document.body.classList.add('comments-open')
+    
+    // Clean up
+    return () => {
+      clearTimeout(timer)
+      document.body.classList.remove('comments-open')
+    }
+  }, [])
 
   return (
-    <div className="comments-section flex flex-col h-full max-h-[90vh]">
-      {/* Header */}
-      <div className="comments-header sticky top-0 z-10 flex items-center justify-between p-4 border-b border-paper-dark/20 dark:border-paper/20 bg-paper dark:bg-paper-dark">
-        <div className="flex items-center gap-2">
-          <MessageCircle className="h-5 w-5 text-highlight" />
-          <h2 className="text-lg font-semibold text-ink dark:text-ink-light">Comments</h2>
-        </div>
-        <button
-          onClick={onClose}
-          className="p-2 rounded-full hover:bg-paper-dark/10 dark:hover:bg-paper/10 transition-colors"
-          aria-label="Close comments"
-        >
-          <X className="h-5 w-5 text-ink-light dark:text-ink-light" />
-        </button>
-      </div>
-
-      {/* Comments list */}
-      <div
-        ref={commentsContainerRef}
-        className="comments-list flex-1 overflow-y-auto p-4 space-y-4 bg-paper/50 dark:bg-paper-dark/50"
+    <div 
+      className="comments-section fixed inset-0 z-[9999] bg-transparent"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Backdrop with click to close */}
+      <div 
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300"
+        onClick={onClose}
+        style={{ opacity: isDraggedUp ? 1 : 0 }}
+      />
+      
+      {/* Comments container */}
+      <div 
+        className="absolute bottom-0 left-0 right-0 max-h-[85vh] bg-paper dark:bg-paper-dark rounded-t-2xl overflow-hidden shadow-xl transition-transform duration-300 ease-out transform"
+        style={{ 
+          transform: isDraggedUp ? 'translateY(0)' : 'translateY(100%)',
+          touchAction: 'none'
+        }}
       >
-        {isLoading ? (
-          <div className="flex justify-center items-center h-32">
-            <Loader2 className="h-8 w-8 text-highlight animate-spin" />
+        {/* Handle for dragging */}
+        <div className="drag-handle absolute top-0 left-0 right-0 h-8 flex items-center justify-center cursor-pointer">
+          <div className="w-12 h-1 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
+        </div>
+        
+        {/* Header */}
+        <div className="comments-header sticky top-0 z-10 flex items-center justify-between px-5 pt-6 pb-2 border-b border-paper-dark/10 dark:border-paper/10 bg-paper dark:bg-paper-dark">
+          <div className="flex items-center gap-2">
+            <MessageCircle className="h-5 w-5 text-highlight" />
+            <h2 className="text-lg font-semibold text-ink dark:text-ink-light">
+              Comments <span className="text-sm font-normal text-ink-light">({commentCount})</span>
+            </h2>
           </div>
-        ) : comments.length > 0 ? (
-          comments.map((comment) => {
-            // Check if we have optimistic UI state for this comment
-            const optimisticState = optimisticLikes[comment.id]
-            const isLiked = optimisticState ? optimisticState.liked : comment.user_has_liked
-            const likesCount = optimisticState ? optimisticState.count : comment.likes_count || 0
+          <button
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-paper-dark/10 dark:hover:bg-paper/10 transition-colors"
+            aria-label="Close comments"
+          >
+            <X className="h-5 w-5 text-ink-light dark:text-ink-light" />
+          </button>
+        </div>
 
-            return (
-              <div
-                key={comment.id}
-                className={`comment bg-paper dark:bg-paper-dark rounded-lg shadow-sm p-4 transition-all ${
-                  animatingCommentId === comment.id ? "animate-pulse border-l-4 border-highlight" : ""
-                }`}
-              >
-                <div className="comment-header flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-full overflow-hidden border border-paper-dark/20 dark:border-paper/20 flex-shrink-0">
-                      <Link href={`/profile/${comment.profiles.id}`}>
-                        <Image
-                          src={comment.profiles.avatar_url || "/placeholder.svg"}
-                          alt={comment.profiles.name}
-                          width={40}
-                          height={40}
-                          className="w-full h-full object-cover"
-                        />
-                      </Link>
+        {/* Comments list */}
+        <div
+          ref={commentsContainerRef}
+          className="comments-list overflow-y-auto overscroll-contain px-5 space-y-4 bg-paper/50 dark:bg-paper-dark/50"
+          style={{ height: 'calc(60vh - 130px)' }}
+        >
+          {isLoading ? (
+            <div className="flex justify-center items-center h-32">
+              <Loader2 className="h-8 w-8 text-highlight animate-spin" />
+            </div>
+          ) : comments.length > 0 ? (
+            comments.map((comment) => {
+              // Check if we have optimistic UI state for this comment
+              const optimisticState = optimisticLikes[comment.id]
+              const isLiked = optimisticState ? optimisticState.liked : comment.user_has_liked
+              const likesCount = optimisticState ? optimisticState.count : comment.likes_count || 0
+
+              return (
+                <div
+                  key={comment.id}
+                  className={`comment flex items-start py-3 ${
+                    animatingCommentId === comment.id ? "animate-pulse-light" : ""
+                  }`}
+                >
+                  {/* User avatar */}
+                  <Link href={`/profile/${comment.profiles.id}`} className="flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full overflow-hidden border border-paper-dark/10 dark:border-paper/10">
+                      <Image
+                        src={comment.profiles.avatar_url || "/placeholder.svg"}
+                        alt={comment.profiles.name}
+                        width={40}
+                        height={40}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
-                    <div>
+                  </Link>
+                  
+                  {/* Comment content */}
+                  <div className="ml-3 flex-1 min-w-0">
+                    <div className="flex flex-col">
                       <Link
                         href={`/profile/${comment.profiles.id}`}
                         className="font-medium text-sm hover:text-highlight dark:hover:text-highlight transition-colors"
                       >
                         {comment.profiles.name}
                       </Link>
-                      <div className="text-xs text-ink-light dark:text-ink-light">
-                        {formatTimeAgo(new Date(comment.created_at))}
+                      <p className="text-sm text-ink dark:text-ink-light break-words whitespace-pre-wrap">
+                        {comment.content}
+                      </p>
+                      <div className="flex items-center gap-4 mt-1 text-xs text-ink-light dark:text-ink-light">
+                        <span>{formatTimeAgo(new Date(comment.created_at))}</span>
+                        {likesCount > 0 && <span>{likesCount} {likesCount === 1 ? 'like' : 'likes'}</span>}
                       </div>
                     </div>
                   </div>
-                </div>
-                <div className="comment-body pl-12 mb-3">
-                  <p className="text-sm text-ink dark:text-ink-light whitespace-pre-line">{comment.content}</p>
-                </div>
-                <div className="comment-actions pl-12 flex items-center gap-4">
+                  
+                  {/* Like button */}
                   <button
                     onClick={() => handleLikeComment(comment.id, isLiked, likesCount)}
-                    className={`flex items-center gap-1 text-xs transition-colors ${
+                    className={`flex flex-col items-center ml-3 transition-colors ${
                       isLiked
                         ? "text-highlight"
                         : "text-ink-light dark:text-ink-light hover:text-highlight dark:hover:text-highlight"
@@ -321,67 +383,80 @@ export default function CommentsSection({ storyId, onClose }: CommentsSectionPro
                     aria-label={isLiked ? "Unlike comment" : "Like comment"}
                   >
                     <Heart
-                      className={`h-4 w-4 transition-all ${
-                        isLiked ? "fill-current" : ""
+                      className={`h-5 w-5 transition-all ${
+                        isLiked ? "fill-highlight" : ""
                       } ${animatingCommentId === comment.id ? "scale-125" : ""}`}
                     />
-                    <span>{likesCount > 0 ? likesCount : ""}</span>
                   </button>
                 </div>
-              </div>
-            )
-          })
-        ) : (
-          <div className="flex flex-col items-center justify-center h-32 text-center">
-            <MessageCircle className="h-8 w-8 text-ink-light dark:text-ink-light mb-2 opacity-50" />
-            <p className="text-ink-light dark:text-ink-light">No comments yet. Be the first to share your thoughts!</p>
-          </div>
-        )}
-      </div>
-
-      {/* Comment input */}
-      <div className="comment-input-container sticky bottom-0 p-4 border-t border-paper-dark/20 dark:border-paper/20 bg-paper dark:bg-paper-dark">
-        <div className="flex items-center gap-3">
-          <div className="flex-1 relative">
-            <textarea
-              ref={commentInputRef}
-              value={newComment}
-              onChange={handleCommentChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Add a comment..."
-              className="w-full h-12 p-3 pr-10 bg-paper-dark/10 dark:bg-paper/10 rounded-lg resize-none focus:ring-2 focus:ring-highlight/50 focus:outline-none text-ink dark:text-ink-light placeholder:text-ink-light/50 dark:placeholder:text-ink-light/50"
-              disabled={isSubmitting || !user}
-            />
-          </div>
-          <button
-            onClick={handleCommentSubmit}
-            disabled={!newComment.trim() || isSubmitting || !user}
-            className={`h-12 w-12 rounded-full flex items-center justify-center shadow-sm transition-colors ${
-              !newComment.trim() || isSubmitting || !user
-                ? "bg-paper-dark/20 dark:bg-paper/20 text-ink-light/50 dark:text-ink-light/50 cursor-not-allowed"
-                : "bg-highlight text-white hover:bg-highlight/80"
-            }`}
-            aria-label="Post comment"
-          >
-            {isSubmitting ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Send className="h-5 w-5" />
-            )}
-          </button>
+              )
+            })
+          ) : (
+            <div className="flex flex-col items-center justify-center h-32 text-center my-12">
+              <MessageCircle className="h-10 w-10 text-ink-light dark:text-ink-light mb-3 opacity-40" />
+              <p className="text-ink-light dark:text-ink-light">No comments yet. Be the first to share your thoughts!</p>
+            </div>
+          )}
         </div>
-        {!user && (
-          <p className="mt-2 text-center text-xs text-ink-light dark:text-ink-light">
-            <button
-              onClick={openModal}
-              className="text-highlight hover:underline"
-            >
-              Sign in
-            </button>{" "}
-            to join the conversation
-          </p>
-        )}
+
+        {/* Comment input */}
+        <div className="comment-input-container sticky bottom-0 px-5 py-4 border-t border-paper-dark/10 dark:border-paper/10 bg-paper dark:bg-paper-dark">
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0">
+              {user && (
+                <div className="w-9 h-9 rounded-full overflow-hidden">
+                  <Image
+                    src={user.user_metadata?.avatar_url || "/placeholder.svg"}
+                    alt="Your avatar"
+                    width={36}
+                    height={36}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+            </div>
+            <div className="flex-1 relative">
+              <textarea
+                ref={commentInputRef}
+                value={newComment}
+                onChange={handleCommentChange}
+                onKeyDown={handleKeyDown}
+                placeholder={user ? "Add a comment..." : "Sign in to comment"}
+                className="w-full min-h-[56px] max-h-[120px] p-3 pr-12 bg-paper-dark/5 dark:bg-paper/5 rounded-2xl resize-none focus:ring-1 focus:ring-highlight/30 focus:outline-none text-ink dark:text-ink-light placeholder:text-ink-light/50 dark:placeholder:text-ink-light/50"
+                disabled={isSubmitting || !user}
+              />
+              <button
+                onClick={handleCommentSubmit}
+                disabled={!newComment.trim() || isSubmitting || !user}
+                className={`absolute right-2 bottom-[14px] h-8 w-8 rounded-full flex items-center justify-center transition-colors ${
+                  !newComment.trim() || isSubmitting || !user
+                    ? "text-ink-light/30 dark:text-ink-light/20 cursor-not-allowed"
+                    : "text-highlight hover:bg-highlight/10"
+                }`}
+                aria-label="Post comment"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Send className="h-5 w-5" />
+                )}
+              </button>
+            </div>
+          </div>
+          {!user && (
+            <p className="mt-2 text-center text-xs text-ink-light dark:text-ink-light">
+              <button
+                onClick={openModal}
+                className="text-highlight hover:underline"
+              >
+                Sign in
+              </button>{" "}
+              to join the conversation
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )
 }
+
